@@ -59,6 +59,34 @@ const dateStr = article?.publishedAt
   )}
 </BaseLayout>
 
+<!-- Mermaid: クライアントサイドで ```mermaid コードブロックを図にレンダリング -->
+<script>
+  async function renderMermaid() {
+    const codeBlocks = document.querySelectorAll('pre code.language-mermaid');
+    if (codeBlocks.length === 0) return;
+
+    const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+      securityLevel: 'strict',
+    });
+
+    for (const block of codeBlocks) {
+      const pre = block.parentElement;
+      if (!pre) continue;
+      const container = document.createElement('div');
+      container.className = 'mermaid';
+      container.textContent = block.textContent ?? '';
+      pre.replaceWith(container);
+    }
+
+    await mermaid.run({ querySelector: '.mermaid' });
+  }
+
+  renderMermaid();
+</script>
+
 <style>
   .article-detail header {
     margin-bottom: 2rem;
@@ -150,5 +178,13 @@ const dateStr = article?.publishedAt
     border-radius: 8px;
     overflow-x: auto;
     margin: 1rem 0;
+  }
+
+  .content :global(.mermaid) {
+    text-align: center;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: var(--color-bg-secondary);
+    border-radius: 8px;
   }
 </style>
