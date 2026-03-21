@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .next/
+.astro/
 .env
 .env.local
 .env.*.local
@@ -8,3 +9,4 @@ dist/
 .DS_Store
 coverage/
 .turbo/
+package-lock.json

@@ -1,0 +1,86 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArticleCard from '../../components/ArticleCard.astro';
+import { fetchApi } from '../../lib/api';
+
+interface ArticleSummary {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  category: string;
+  tags: string[];
+  publishedAt: string | null;
+}
+
+interface ApiResponse {
+  data: ArticleSummary[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  'claude-code': 'Claude Code News',
+  'ai-hacks': 'AI Hacks & Trends',
+};
+
+const { name } = Astro.params;
+const displayName = CATEGORY_LABELS[name ?? ''] ?? name ?? '';
+let articles: ArticleSummary[] = [];
+
+try {
+  const res = await fetchApi<ApiResponse>(`/articles?status=published&category=${name}&limit=50`);
+  articles = res.data;
+} catch (e) {
+  console.error(e);
+}
+---
+
+<BaseLayout title={displayName}>
+  <section class="category-header">
+    <h1>{displayName}</h1>
+    <p>{articles.length} articles</p>
+  </section>
+
+  <section class="article-list">
+    {articles.length === 0 && (
+      <p class="empty">このカテゴリにはまだ記事がありません。</p>
+    )}
+    {articles.map((article) => (
+      <ArticleCard
+        title={article.title}
+        slug={article.slug}
+        excerpt={article.excerpt}
+        category={article.category}
+        tags={article.tags}
+        publishedAt={article.publishedAt}
+      />
+    ))}
+  </section>
+</BaseLayout>
+
+<style>
+  .category-header {
+    padding: 1.5rem 0 2rem;
+  }
+
+  .category-header h1 {
+    font-size: 1.75rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .category-header p {
+    color: var(--color-text-secondary);
+  }
+
+  .article-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--color-text-secondary);
+    padding: 3rem 0;
+  }
+</style>
