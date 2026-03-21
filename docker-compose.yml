@@ -10,8 +10,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app -d ai_tech_blog"]
       interval: 10s
@@ -33,10 +33,10 @@ services:
       INGESTION_CRON: ${INGESTION_CRON:-0 */6 * * *}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: "3000"
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -52,10 +52,11 @@ services:
         condition: service_healthy
     environment:
       PUBLIC_API_URL: http://backend:3000/api
-    ports:
-      - "4321:4321"
+      HOST: "0.0.0.0"
+    expose:
+      - "4321"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:4321/ || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4321/ || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
