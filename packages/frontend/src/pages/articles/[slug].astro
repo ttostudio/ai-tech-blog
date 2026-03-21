@@ -3,12 +3,6 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { fetchApi } from '../../lib/api';
 import { marked } from 'marked';
 
-interface Source {
-  title: string;
-  url: string | null;
-  sourceChannel: string;
-}
-
 interface ArticleData {
   id: string;
   title: string;
@@ -17,10 +11,10 @@ interface ArticleData {
   excerpt: string;
   category: string;
   tags: string[];
+  author: string;
   status: string;
   publishedAt: string | null;
   createdAt: string;
-  sources: Source[];
 }
 
 const { slug } = Astro.params;
@@ -49,6 +43,7 @@ const dateStr = article?.publishedAt
       <header>
         <div class="meta">
           <a href={`/category/${article.category}`} class="category">{article.category}</a>
+          <span class="author">by {article.author}</span>
           {dateStr && <time>{dateStr}</time>}
         </div>
         <h1>{article.title}</h1>
@@ -60,20 +55,6 @@ const dateStr = article?.publishedAt
       </header>
 
       <div class="content" set:html={htmlContent} />
-
-      {article.sources.length > 0 && (
-        <section class="sources">
-          <h2>Sources</h2>
-          <ul>
-            {article.sources.map((s) => (
-              <li>
-                {s.url ? <a href={s.url} target="_blank" rel="noopener">{s.title}</a> : s.title}
-                <span class="source-channel">({s.sourceChannel})</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </article>
   )}
 </BaseLayout>
@@ -96,6 +77,10 @@ const dateStr = article?.publishedAt
     background: var(--color-bg-secondary);
     padding: 0.15rem 0.5rem;
     border-radius: 4px;
+  }
+
+  .author {
+    font-style: italic;
   }
 
   h1 {
@@ -152,29 +137,18 @@ const dateStr = article?.publishedAt
     color: var(--color-text-secondary);
   }
 
-  .sources {
-    border-top: 1px solid var(--color-border);
-    margin-top: 3rem;
-    padding-top: 1.5rem;
+  .content :global(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 1rem 0;
   }
 
-  .sources h2 {
-    font-size: 1.1rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .sources ul {
-    list-style: none;
-    padding: 0;
-  }
-
-  .sources li {
-    margin: 0.5rem 0;
-  }
-
-  .source-channel {
-    color: var(--color-text-secondary);
-    font-size: 0.85rem;
-    margin-left: 0.5rem;
+  .content :global(pre) {
+    background: var(--color-bg-secondary);
+    padding: 1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 1rem 0;
   }
 </style>

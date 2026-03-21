@@ -8,11 +8,9 @@ function createMockSql(healthy = true) {
   } else {
     fn.mockRejectedValue(new Error('Connection refused'));
   }
-  // Tagged template literal handler
   const handler = (strings: TemplateStringsArray, ..._values: unknown[]) => {
     return fn(strings.join(''));
   };
-  // Make it callable as both function and tagged template
   return new Proxy(handler, {
     apply(_target, _thisArg, args) {
       return fn(args[0]?.join?.('') ?? args[0]);
@@ -39,6 +37,7 @@ describe('GET /api/health', () => {
     expect(body.status).toBe('ok');
     expect(body.version).toBe('1.0.0');
     expect(body.services.database).toBe('ok');
+    expect(body.services).not.toHaveProperty('ingestion');
   });
 
   it('returns error when database is down', async () => {

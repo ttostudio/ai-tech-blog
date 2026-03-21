@@ -5,10 +5,11 @@ interface Props {
   excerpt: string;
   category: string;
   tags: string[];
+  author: string;
   publishedAt: string | null;
 }
 
-const { title, slug, excerpt, category, tags, publishedAt } = Astro.props;
+const { title, slug, excerpt, category, tags, author, publishedAt } = Astro.props;
 
 const dateStr = publishedAt
   ? new Date(publishedAt).toLocaleDateString('ja-JP', {
@@ -23,6 +24,7 @@ const dateStr = publishedAt
   <a href={`/articles/${slug}`}>
     <div class="card-meta">
       <span class="category">{category}</span>
+      <span class="author">{author}</span>
       {dateStr && <time>{dateStr}</time>}
     </div>
     <h2>{title}</h2>
@@ -69,6 +71,10 @@ const dateStr = publishedAt
     padding: 0.15rem 0.5rem;
     border-radius: 4px;
     font-weight: 500;
+  }
+
+  .author {
+    font-style: italic;
   }
 
   h2 {

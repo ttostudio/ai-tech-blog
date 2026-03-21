@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Sql, ApiResponse, Category } from '@ai-tech-blog/shared';
-import { CHANNEL_CATEGORY_MAP } from '@ai-tech-blog/shared';
+import { CATEGORY_DISPLAY_NAMES } from '@ai-tech-blog/shared';
 
 export async function categoryRoutes(app: FastifyInstance): Promise<void> {
   const sql = (app as unknown as { sql: Sql }).sql;
@@ -14,15 +14,9 @@ export async function categoryRoutes(app: FastifyInstance): Promise<void> {
       ORDER BY article_count DESC
     `;
 
-    // Build display name map from CHANNEL_CATEGORY_MAP
-    const displayNames: Record<string, string> = {};
-    for (const val of Object.values(CHANNEL_CATEGORY_MAP)) {
-      displayNames[val.slug] = val.displayName;
-    }
-
     const categories: Category[] = rows.map((r) => ({
       name: r.category,
-      displayName: displayNames[r.category] ?? r.category,
+      displayName: CATEGORY_DISPLAY_NAMES[r.category] ?? r.category,
       articleCount: r.article_count,
     }));
 

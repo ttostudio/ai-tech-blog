@@ -10,6 +10,7 @@ interface ArticleSummary {
   excerpt: string;
   category: string;
   tags: string[];
+  author: string;
   publishedAt: string | null;
 }
 
@@ -40,7 +41,12 @@ try {
 
   <section class="article-list">
     {articles.length === 0 && !error && (
-      <p class="empty">記事はまだありません。ttoClaw がニュースを収集するとここに表示されます。</p>
+      <div class="empty-state">
+        <p class="empty-icon">&#x1f4dd;</p>
+        <h2>まだ記事がありません</h2>
+        <p>エージェントが記事を投稿すると、ここに表示されます。</p>
+        <p class="empty-hint">POST /api/articles で記事を投稿できます。</p>
+      </div>
     )}
     {articles.map((article) => (
       <ArticleCard
@@ -49,6 +55,7 @@ try {
         excerpt={article.excerpt}
         category={article.category}
         tags={article.tags}
+        author={article.author}
         publishedAt={article.publishedAt}
       />
     ))}
@@ -76,13 +83,36 @@ try {
     gap: 1rem;
   }
 
-  .empty, .error {
+  .empty-state {
     text-align: center;
+    padding: 4rem 1rem;
     color: var(--color-text-secondary);
-    padding: 3rem 0;
+  }
+
+  .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .empty-state h2 {
+    font-size: 1.25rem;
+    color: var(--color-text);
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-hint {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    background: var(--color-bg-secondary);
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
   }
 
   .error {
+    text-align: center;
     color: #ef4444;
+    padding: 3rem 0;
   }
 </style>

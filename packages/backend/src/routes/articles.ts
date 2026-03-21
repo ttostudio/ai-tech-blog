@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { Sql, PaginatedResponse, Article, ApiResponse, ArticleWithSources } from '@ai-tech-blog/shared';
+import type { Sql, PaginatedResponse, Article, ApiResponse, SubmitArticleBody } from '@ai-tech-blog/shared';
+import { notifySlack } from '../services/slack.js';
 
 export async function articleRoutes(app: FastifyInstance): Promise<void> {
   const sql = (app as unknown as { sql: Sql }).sql;
@@ -19,7 +20,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         SELECT COUNT(*)::int as total FROM articles WHERE status = ${status} AND category = ${category}
       `;
       rows = await sql`
-        SELECT id, title, slug, excerpt, category, tags, status, published_at, created_at
+        SELECT id, title, slug, excerpt, category, tags, author, status, published_at, created_at
         FROM articles
         WHERE status = ${status} AND category = ${category}
         ORDER BY published_at DESC NULLS LAST, created_at DESC
@@ -30,7 +31,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         SELECT COUNT(*)::int as total FROM articles WHERE status = ${status}
       `;
       rows = await sql`
-        SELECT id, title, slug, excerpt, category, tags, status, published_at, created_at
+        SELECT id, title, slug, excerpt, category, tags, author, status, published_at, created_at
         FROM articles
         WHERE status = ${status}
         ORDER BY published_at DESC NULLS LAST, created_at DESC
@@ -48,6 +49,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         excerpt: r.excerpt,
         category: r.category,
         tags: r.tags,
+        author: r.author,
         status: r.status,
         publishedAt: r.published_at,
         createdAt: r.created_at,
@@ -77,14 +79,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
 
     const article = rows[0];
 
-    const sources = await sql`
-      SELECT n.title, n.url, n.source_channel
-      FROM article_sources a_s
-      JOIN news_items n ON n.id = a_s.news_item_id
-      WHERE a_s.article_id = ${article.id}
-    `;
-
-    const response: ApiResponse<ArticleWithSources> = {
+    const response: ApiResponse<Article> = {
       data: {
         id: article.id,
         title: article.title,
@@ -93,18 +88,76 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         excerpt: article.excerpt,
         category: article.category,
         tags: article.tags,
+        author: article.author,
         status: article.status,
         publishedAt: article.published_at,
         createdAt: article.created_at,
         updatedAt: article.updated_at,
-        sources: sources.map((s) => ({
-          title: s.title,
-          url: s.url,
-          sourceChannel: s.source_channel,
-        })),
       },
     };
 
     return reply.send(response);
+  });
+
+  // Submit a new article
+  app.post('/articles', async (req, reply) => {
+    const body = req.body as SubmitArticleBody;
+
+    // Validate required fields
+    if (!body.title || !body.slug || !body.content || !body.category || !body.author) {
+      return reply.code(400).send({
+        error: { code: 'VALIDATION_ERROR', message: 'title, slug, content, category, and author are required' },
+      });
+    }
+
+    // Validate slug format
+    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(body.slug) && !/^[a-z0-9]$/.test(body.slug)) {
+      return reply.code(400).send({
+        error: { code: 'VALIDATION_ERROR', message: 'slug must be lowercase alphanumeric with hyphens' },
+      });
+    }
+
+    // Check slug uniqueness
+    const existing = await sql`SELECT 1 FROM articles WHERE slug = ${body.slug}`;
+    if (existing.length > 0) {
+      return reply.code(409).send({
+        error: { code: 'CONFLICT', message: `Article with slug "${body.slug}" already exists` },
+      });
+    }
+
+    // Auto-generate excerpt from content if not provided
+    const excerpt = body.excerpt ?? body.content.replace(/[#*`[\]()>_~|]/g, '').slice(0, 200).trim();
+    const tags = body.tags ?? [];
+
+    const [article] = await sql`
+      INSERT INTO articles (title, slug, content, excerpt, category, tags, author, status, published_at)
+      VALUES (${body.title}, ${body.slug}, ${body.content}, ${excerpt}, ${body.category}, ${tags}, ${body.author}, 'published', NOW())
+      RETURNING *
+    `;
+
+    const baseUrl = process.env.PUBLIC_BASE_URL ?? 'http://localhost:3100';
+    const articleUrl = `${baseUrl}/articles/${article.slug}`;
+
+    // Fire-and-forget Slack notification
+    notifySlack(article.title, articleUrl).catch(() => {});
+
+    const response: ApiResponse<Article> = {
+      data: {
+        id: article.id,
+        title: article.title,
+        slug: article.slug,
+        content: article.content,
+        excerpt: article.excerpt,
+        category: article.category,
+        tags: article.tags,
+        author: article.author,
+        status: article.status,
+        publishedAt: article.published_at,
+        createdAt: article.created_at,
+        updatedAt: article.updated_at,
+      },
+    };
+
+    return reply.code(201).send(response);
   });
 }
