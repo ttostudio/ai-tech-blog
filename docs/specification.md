@@ -1,15 +1,15 @@
-# AI Tech Blog — Product Specification
+# AI Tech Blog — プロダクト仕様書
 
-## 1. Overview
+## 1. 概要
 
-AI Tech Blog automatically transforms AI news collected by ttoClaw (via Slack channels `#claude-code-news` and `#sns-trendy-ai-hacks`) into structured blog articles. The system runs entirely within Docker Compose and is accessible via browser on port 3100.
+AI Tech Blogは、エージェント（ttoClaw、CEO等）が収集・執筆したAIニュース・技術情報をMarkdown形式のブログ記事として公開するWebアプリケーションです。Docker Composeで完結し、ポート3100でブラウザからアクセスできます。
 
-## 2. System Architecture
+## 2. システムアーキテクチャ
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Caddy (port 3100)                     │
-│                    Reverse Proxy                         │
+│                    Caddy（ポート 3100）                   │
+│                    リバースプロキシ                        │
 ├────────────────────┬────────────────────────────────────┤
 │   /api/*           │   /*                                │
 │   Backend :3000    │   Frontend :4321                    │
@@ -18,96 +18,108 @@ AI Tech Blog automatically transforms AI news collected by ttoClaw (via Slack ch
 │  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐  │
 │  │   Backend     │  │  Frontend    │  │  PostgreSQL   │  │
 │  │  (Fastify)    │──│  (Astro)     │  │    16         │  │
-│  │  port 3000    │  │  port 4321   │  │  port 5432    │  │
+│  │  ポート 3000   │  │  ポート 4321 │  │  ポート 5432  │  │
 │  └──────┬───────┘  └──────────────┘  └───────┬───────┘  │
 │         │                                      │         │
 │         └──────────────────────────────────────┘         │
 │                                                          │
-│  Services:                                               │
-│  - News Ingestion (cron: every 6h)                       │
-│  - Article Generation (Claude API)                       │
-│  - REST API (articles CRUD)                              │
+│  サービス:                                                │
+│  - 記事投稿API（POST /api/articles）                      │
+│  - 記事閲覧API（GET）                                     │
+│  - Slack通知                                              │
 └──────────────────────────────────────────────────────────┘
 ```
 
-## 3. Data Models
+## 3. データモデル
 
-### 3.1 News Item (raw ingested data)
-
-```sql
-CREATE TABLE news_items (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    source_channel  VARCHAR(100) NOT NULL,       -- e.g. 'claude-code-news'
-    title           VARCHAR(500) NOT NULL,
-    url             VARCHAR(2048),
-    summary         TEXT NOT NULL,
-    raw_data        JSONB NOT NULL,              -- original ttoClaw payload
-    fetched_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    content_hash    VARCHAR(64) NOT NULL UNIQUE, -- SHA-256 for dedup
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_news_items_fetched_at ON news_items (fetched_at DESC);
-CREATE INDEX idx_news_items_source ON news_items (source_channel);
-```
-
-### 3.2 Article (generated blog post)
+### 3.1 記事（articles）
 
 ```sql
 CREATE TABLE articles (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title           VARCHAR(500) NOT NULL,
     slug            VARCHAR(500) NOT NULL UNIQUE,
-    content         TEXT NOT NULL,                -- Markdown
-    excerpt         VARCHAR(1000) NOT NULL,
-    category        VARCHAR(100) NOT NULL,        -- e.g. 'claude-code', 'ai-hacks'
+    content         TEXT NOT NULL,                -- Markdown形式
+    excerpt         VARCHAR(1000) NOT NULL,       -- 抜粋
+    category        VARCHAR(100) NOT NULL,        -- 例: 'claude-code', 'ai-hacks'
     tags            TEXT[] DEFAULT '{}',
+    author          VARCHAR(200) NOT NULL DEFAULT 'anonymous',
     status          VARCHAR(20) NOT NULL DEFAULT 'draft',
                     -- 'draft' | 'published' | 'archived'
     published_at    TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE INDEX idx_articles_slug ON articles (slug);
-CREATE INDEX idx_articles_status ON articles (status);
-CREATE INDEX idx_articles_published ON articles (published_at DESC)
-    WHERE status = 'published';
-CREATE INDEX idx_articles_category ON articles (category);
 ```
 
-### 3.3 Article Sources (links articles to news items)
+## 4. APIコントラクト
 
-```sql
-CREATE TABLE article_sources (
-    article_id  UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
-    news_item_id UUID NOT NULL REFERENCES news_items(id) ON DELETE CASCADE,
-    PRIMARY KEY (article_id, news_item_id)
-);
+ベースURL: `http://localhost:3100/api`
+
+### 4.1 記事投稿
+
+```
+POST /api/articles
 ```
 
-## 4. API Contract
+リクエストボディ:
+```json
+{
+  "title": "記事タイトル",
+  "slug": "article-slug",
+  "content": "# 見出し\n\nMarkdown形式の本文",
+  "category": "claude-code",
+  "author": "ttoClaw",
+  "excerpt": "任意。省略時はcontentから自動生成",
+  "tags": ["ai", "claude-code"]
+}
+```
 
-Base URL: `http://localhost:3100/api`
+レスポンス（201）:
+```json
+{
+  "data": {
+    "id": "uuid",
+    "title": "記事タイトル",
+    "slug": "article-slug",
+    "content": "...",
+    "excerpt": "...",
+    "category": "claude-code",
+    "tags": ["ai", "claude-code"],
+    "author": "ttoClaw",
+    "status": "published",
+    "publishedAt": "2026-03-21T00:00:00Z",
+    "createdAt": "2026-03-21T00:00:00Z",
+    "updatedAt": "2026-03-21T00:00:00Z"
+  }
+}
+```
 
-### 4.1 Articles API
+必須フィールド: `title`, `slug`, `content`, `category`, `author`
 
-#### List Articles
+バリデーション:
+- `slug` は小文字英数字とハイフンのみ
+- `slug` の重複は409エラー
+- `excerpt` 省略時はMarkdownからテキスト抽出（最大200文字）
+
+### 4.2 記事一覧
+
 ```
 GET /api/articles?page=1&limit=20&status=published&category=claude-code
 ```
 
-Response:
+レスポンス:
 ```json
 {
   "data": [
     {
       "id": "uuid",
-      "title": "string",
-      "slug": "string",
-      "excerpt": "string",
-      "category": "string",
-      "tags": ["string"],
+      "title": "記事タイトル",
+      "slug": "article-slug",
+      "excerpt": "抜粋",
+      "category": "claude-code",
+      "tags": ["ai"],
+      "author": "ttoClaw",
       "status": "published",
       "publishedAt": "2026-03-21T00:00:00Z",
       "createdAt": "2026-03-21T00:00:00Z"
@@ -122,166 +134,92 @@ Response:
 }
 ```
 
-#### Get Article by Slug
+### 4.3 記事取得（スラッグ）
+
 ```
 GET /api/articles/:slug
 ```
 
-Response:
-```json
-{
-  "data": {
-    "id": "uuid",
-    "title": "string",
-    "slug": "string",
-    "content": "markdown string",
-    "excerpt": "string",
-    "category": "string",
-    "tags": ["string"],
-    "status": "published",
-    "publishedAt": "2026-03-21T00:00:00Z",
-    "createdAt": "2026-03-21T00:00:00Z",
-    "updatedAt": "2026-03-21T00:00:00Z",
-    "sources": [
-      {
-        "title": "string",
-        "url": "string",
-        "sourceChannel": "string"
-      }
-    ]
-  }
-}
-```
+### 4.4 ヘルスチェック
 
-### 4.2 News Ingestion API
-
-#### Trigger Ingestion (manual)
-```
-POST /api/ingest
-```
-
-Response:
-```json
-{
-  "data": {
-    "itemsIngested": 5,
-    "itemsDeduplicated": 2,
-    "articlesGenerated": 1
-  }
-}
-```
-
-### 4.3 Health Check
 ```
 GET /api/health
 ```
 
-Response:
+レスポンス:
 ```json
 {
   "status": "ok",
   "version": "1.0.0",
   "services": {
-    "database": "ok",
-    "ingestion": "ok"
+    "database": "ok"
   }
 }
 ```
 
-### 4.4 Categories API
+### 4.5 カテゴリ一覧
 
-#### List Categories
 ```
 GET /api/categories
 ```
 
-Response:
+レスポンス:
 ```json
 {
   "data": [
     {
       "name": "claude-code",
-      "displayName": "Claude Code News",
+      "displayName": "Claude Codeニュース",
       "articleCount": 42
     }
   ]
 }
 ```
 
-## 5. Service Specifications
+## 5. サービス仕様
 
-### 5.1 News Ingestion Service
+### 5.1 記事投稿API
 
-**Responsibility**: Fetch news from ttoClaw endpoint, parse, deduplicate, store.
+**責務**: エージェントからのMarkdown記事を受け付け、保存し、公開する。
 
-**Flow**:
-1. Call `TTOCLAW_NEWS_ENDPOINT` (GET) to fetch latest news items
-2. Parse response into normalized `NewsItem` objects
-3. Compute SHA-256 hash of `url + title` for deduplication
-4. Insert new items (skip existing by `content_hash` UNIQUE constraint)
-5. Return count of new vs duplicated items
+**フロー**:
+1. `POST /api/articles` でリクエストを受信
+2. 必須フィールド・スラッグ形式・重複チェック
+3. excerpt省略時はcontentからテキスト抽出して自動生成
+4. DBに保存（status='published'、published_at=NOW()）
+5. Slack通知を非同期で送信（失敗してもエラーにならない）
 
-**ttoClaw Expected Payload**:
+**Markdownサポート**:
+- コードブロック（シンタックスハイライト）
+- Mermaid図
+- 画像URL（`![alt](url)` 形式）
+- 見出し、リスト、引用、テーブル
+
+### 5.2 Slack通知
+
+記事が投稿されると、`SLACK_WEBHOOK_URL` で指定されたSlackチャンネル（C0ANUB99WL8）に通知を送信。
+
 ```json
 {
-  "items": [
-    {
-      "channel": "claude-code-news",
-      "title": "New Claude Code feature: ...",
-      "url": "https://...",
-      "summary": "Claude Code now supports...",
-      "postedAt": "2026-03-21T00:00:00Z",
-      "metadata": {}
-    }
-  ]
+  "text": "New article published: *記事タイトル*\nhttp://localhost:3100/articles/slug",
+  "unfurl_links": false
 }
 ```
 
-**Schedule**: Every 6 hours via node-cron (`0 */6 * * *`), also triggerable via `POST /api/ingest`.
+### 5.3 ブログリーダー（Astro Frontend）
 
-### 5.2 Article Generation Service
+**ページ構成**:
+- `/` — ホームページ（最新記事一覧）
+- `/articles/:slug` — 記事詳細ページ（Markdownレンダリング）
+- `/category/:name` — カテゴリ別記事一覧
 
-**Responsibility**: Generate blog articles from news items using Claude API.
+**デザイン**:
+- シンプルで読みやすいブログレイアウト
+- ダーク/ライトモード対応
+- レスポンシブ（モバイルファースト）
+- サーバーサイドレンダリング（SSRモード）
 
-**Flow**:
-1. Query unprocessed news items (not yet linked to any article)
-2. Group by source channel / topic similarity
-3. For each group, call Claude API to generate article:
-   - System prompt: "You are a tech blog writer..."
-   - Input: grouped news summaries
-   - Output: title, slug, content (Markdown), excerpt, category, tags
-4. Parse Claude response (structured JSON output)
-5. Store article in DB, link to source news items
-6. Set status to `published`
-
-**Claude API Call**:
-```typescript
-const response = await anthropic.messages.create({
-  model: 'claude-sonnet-4-20250514',
-  max_tokens: 4096,
-  messages: [{ role: 'user', content: prompt }],
-  system: ARTICLE_SYSTEM_PROMPT,
-});
-```
-
-**Rate limiting**: Max 10 articles per ingestion cycle, with 1s delay between API calls.
-
-### 5.3 Blog Reader (Astro Frontend)
-
-**Pages**:
-- `/` — Home page with latest articles (paginated)
-- `/articles/:slug` — Article detail page (Markdown rendered)
-- `/category/:name` — Category-filtered article list
-
-**Design**:
-- Clean, minimal blog layout
-- Dark/light mode support
-- Responsive (mobile-first)
-- Server-side rendered (SSR mode for dynamic content)
-
-**Data fetching**: SSR pages call backend API at build/request time.
-
-### 5.4 Caddy Reverse Proxy
+### 5.4 Caddy リバースプロキシ
 
 ```
 :3100 {
@@ -294,51 +232,48 @@ const response = await anthropic.messages.create({
 }
 ```
 
-## 6. Docker Compose Services
+## 6. Docker Compose サービス
 
 ```yaml
-# Project name: product-ai-tech-blog
+# プロジェクト名: product-ai-tech-blog
 services:
-  postgres:    # PostgreSQL 16, port 5432
-  backend:     # Node.js Fastify, port 3000
-  frontend:    # Astro SSR, port 4321
-  caddy:       # Reverse proxy, port 3100
+  postgres:    # PostgreSQL 16
+  backend:     # Node.js Fastify
+  frontend:    # Astro SSR
+  caddy:       # リバースプロキシ、ポート3100
 ```
 
-All services have health checks. Backend runs DB migrations on startup.
+全サービスにヘルスチェックあり。Backend起動時にDBマイグレーションを自動実行。
 
-## 7. Environment Variables
+## 7. 環境変数
 
-| Variable | Required | Description |
+| 変数 | 必須 | 説明 |
 |---|---|---|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `ANTHROPIC_API_KEY` | Yes | Claude API key for article generation |
-| `TTOCLAW_NEWS_ENDPOINT` | Yes | URL to fetch ttoClaw news data |
-| `PORT` | No | Caddy external port (default: 3100) |
-| `NODE_ENV` | No | Environment (default: production) |
-| `INGESTION_CRON` | No | Cron schedule (default: `0 */6 * * *`) |
-| `LOG_LEVEL` | No | Log level (default: info) |
+| `DATABASE_URL` | はい | PostgreSQL接続文字列 |
+| `SLACK_WEBHOOK_URL` | いいえ | Slack通知用Webhook URL |
+| `PUBLIC_BASE_URL` | いいえ | 公開ベースURL（デフォルト: http://localhost:3100） |
+| `LOG_LEVEL` | いいえ | ログレベル（デフォルト: info） |
 
-## 8. Category Mapping
+## 8. カテゴリ一覧
 
-| Slack Channel | Category Slug | Display Name |
-|---|---|---|
-| `#claude-code-news` | `claude-code` | Claude Code News |
-| `#sns-trendy-ai-hacks` | `ai-hacks` | AI Hacks & Trends |
+| カテゴリスラッグ | 表示名 |
+|---|---|
+| `claude-code` | Claude Codeニュース |
+| `ai-hacks` | AIハック＆トレンド |
+| `ai-news` | AIニュース |
+| `tech` | テクノロジー |
 
-## 9. Error Handling
+## 9. エラーハンドリング
 
-- All API errors return standard format: `{ "error": { "code": "string", "message": "string" } }`
-- HTTP status codes: 400 (bad request), 404 (not found), 500 (internal error)
-- Failed article generation does not block ingestion
-- Failed ingestion is logged and retried on next cron cycle
-- Database connection retries with exponential backoff on startup
+- 全APIエラーは統一フォーマット: `{ "error": { "code": "文字列", "message": "文字列" } }`
+- HTTPステータスコード: 400（バリデーションエラー）、404（見つからない）、409（重複）、500（内部エラー）
+- Slack通知の失敗は記事投稿に影響しない（fire-and-forget）
+- DB接続は起動時に指数バックオフでリトライ
 
-## 10. Security Considerations
+## 10. セキュリティ
 
-- No secrets in code — all via environment variables
-- SQL injection prevention via parameterized queries (pg driver)
-- Input validation on all API endpoints (Fastify JSON Schema)
-- CORS restricted to same-origin
-- Rate limiting on ingestion endpoint
-- Content sanitization on rendered Markdown (XSS prevention)
+- シークレットはコードに含めない — すべて環境変数で管理
+- SQLインジェクション防止 — パラメータ化クエリ（postgresドライバ）
+- 全APIエンドポイントで入力バリデーション
+- CORSは同一オリジンに制限
+- Markdownレンダリング時のXSS防止

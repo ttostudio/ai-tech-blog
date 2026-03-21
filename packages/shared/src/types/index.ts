@@ -71,8 +71,8 @@ export interface Category {
 }
 
 export const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
-  'claude-code': 'Claude Code News',
-  'ai-hacks': 'AI Hacks & Trends',
-  'ai-news': 'AI News',
-  'tech': 'Tech',
+  'claude-code': 'Claude Codeニュース',
+  'ai-hacks': 'AIハック＆トレンド',
+  'ai-news': 'AIニュース',
+  'tech': 'テクノロジー',
 };

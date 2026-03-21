@@ -37,13 +37,13 @@ const dateStr = article?.publishedAt
   : '';
 ---
 
-<BaseLayout title={article?.title ?? 'Article'} description={article?.excerpt}>
+<BaseLayout title={article?.title ?? '記事'} description={article?.excerpt}>
   {article && (
     <article class="article-detail">
       <header>
         <div class="meta">
           <a href={`/category/${article.category}`} class="category">{article.category}</a>
-          <span class="author">by {article.author}</span>
+          <span class="author">著者: {article.author}</span>
           {dateStr && <time>{dateStr}</time>}
         </div>
         <h1>{article.title}</h1>

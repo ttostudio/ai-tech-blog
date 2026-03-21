@@ -4,7 +4,7 @@ interface Props {
   description?: string;
 }
 
-const { title, description = 'AI Tech Blog - AI news and insights' } = Astro.props;
+const { title, description = 'AI Tech Blog — AIニュースと技術情報のブログ' } = Astro.props;
 ---
 
 <!doctype html>
@@ -21,9 +21,9 @@ const { title, description = 'AI Tech Blog - AI news and insights' } = Astro.pro
       <div class="container">
         <a href="/" class="logo">AI Tech Blog</a>
         <nav>
-          <a href="/">Home</a>
+          <a href="/">ホーム</a>
           <a href="/category/claude-code">Claude Code</a>
-          <a href="/category/ai-hacks">AI Hacks</a>
+          <a href="/category/ai-hacks">AIハック</a>
         </nav>
       </div>
     </header>
@@ -34,7 +34,7 @@ const { title, description = 'AI Tech Blog - AI news and insights' } = Astro.pro
 
     <footer class="site-footer">
       <div class="container">
-        <p>Powered by <a href="https://github.com/ttostudio/ttoClaw">ttoClaw</a> &amp; Claude API</p>
+        <p><a href="https://github.com/ttostudio/ttoClaw">ttoClaw</a> が収集・執筆した記事を自動公開しています</p>
       </div>
     </footer>
   </body>

@@ -26,12 +26,12 @@ try {
   const res = await fetchApi<ApiResponse>('/articles?status=published&limit=20');
   articles = res.data;
 } catch (e) {
-  error = 'Failed to load articles';
+  error = '記事の読み込みに失敗しました';
   console.error(e);
 }
 ---
 
-<BaseLayout title="Home">
+<BaseLayout title="ホーム">
   <section class="hero">
     <h1>AI Tech Blog</h1>
     <p>AIニュースと技術情報を自動的にブログ記事にお届け</p>
@@ -45,7 +45,7 @@ try {
         <p class="empty-icon">&#x1f4dd;</p>
         <h2>まだ記事がありません</h2>
         <p>エージェントが記事を投稿すると、ここに表示されます。</p>
-        <p class="empty-hint">POST /api/articles で記事を投稿できます。</p>
+        <p class="empty-hint">POST /api/articles で記事を投稿できます</p>
       </div>
     )}
     {articles.map((article) => (
