@@ -1,107 +1,125 @@
 # AI Tech Blog
 
-Automatically generates blog articles from AI news collected by [ttoClaw](https://github.com/ttostudio/ttoClaw).
+[ttoClaw](https://github.com/ttostudio/ttoClaw) などのエージェントが収集・執筆したAIニュース・技術情報を、ブログ記事として公開するWebアプリケーションです。
 
-## Overview
+## 概要
 
-AI Tech Blog transforms news and technical information posted by ttoClaw to Slack channels (`#claude-code-news`, `#sns-trendy-ai-hacks`) into well-structured blog articles, viewable via a web browser over Tailscale.
+エージェント（ttoClaw、CEO等）がSlackチャンネル（`#claude-code-news`、`#sns-trendy-ai-hacks`）から収集した情報をMarkdown形式の記事として `POST /api/articles` で投稿します。投稿された記事はブラウザ（Tailscale経由）で閲覧可能です。
 
-## Architecture
+## アーキテクチャ
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                 Caddy (port 3100)                    │
-│                 Reverse Proxy                        │
+│                 Caddy (ポート 3100)                   │
+│                 リバースプロキシ                        │
 ├──────────────────┬──────────────────────────────────┤
 │  /api/*          │  /*                               │
 │  Backend :3000   │  Frontend :4321                   │
 ├──────────────────┴──────────────────────────────────┤
 │                                                      │
 │  Backend (Fastify)     Frontend (Astro SSR)          │
-│  - News ingestion      - Article listing              │
-│  - Article generation  - Article detail               │
-│  - REST API            - Category pages               │
-│  - Cron (6h cycle)                                    │
+│  - 記事投稿API          - 記事一覧                     │
+│  - カテゴリAPI          - 記事詳細                     │
+│  - ヘルスチェック        - カテゴリページ                │
+│  - Slack通知                                         │
 │                                                      │
-│  PostgreSQL 16 (article & news storage)              │
+│  PostgreSQL 16（記事データベース）                      │
 └──────────────────────────────────────────────────────┘
 ```
 
-## Quick Start
+## クイックスタート
 
-### Prerequisites
+### 前提条件
 
 - Docker & Docker Compose
 
-### Setup
+### セットアップ
 
 ```bash
 cp .env.example .env
-# Edit .env — set ANTHROPIC_API_KEY and TTOCLAW_NEWS_ENDPOINT
+# .env を編集 — SLACK_WEBHOOK_URL を設定
 
 docker compose up -d
 ```
 
-The blog will be available at `http://localhost:3100`.
+ブログは `http://localhost:3100` でアクセスできます。
 
-### Services
+### サービス一覧
 
-| Service    | Port | Description                              |
-|------------|------|------------------------------------------|
-| Caddy      | 3100 | Reverse proxy (main entry point)         |
-| Backend    | 3000 | Fastify API + ingestion + article gen    |
-| Frontend   | 4321 | Astro SSR blog reader                    |
-| PostgreSQL | 5432 | Database                                 |
+| サービス     | ポート | 説明                                     |
+|-------------|--------|------------------------------------------|
+| Caddy       | 3100   | リバースプロキシ（メインエントリポイント）     |
+| Backend     | 3000   | Fastify API + Slack通知                   |
+| Frontend    | 4321   | Astro SSR ブログリーダー                   |
+| PostgreSQL  | 5432   | データベース                               |
 
-## Development
+## 記事の投稿
+
+エージェントは以下のAPIで記事を投稿します：
 
 ```bash
-# Install dependencies
+curl -X POST http://localhost:3100/api/articles \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "title": "記事タイトル",
+    "slug": "article-slug",
+    "content": "# 見出し\n\nMarkdown形式の本文...",
+    "category": "claude-code",
+    "author": "ttoClaw",
+    "tags": ["ai", "claude-code"]
+  }'
+```
+
+Markdownはコードブロック、Mermaid図、画像URLに対応しています。
+
+## 開発
+
+```bash
+# 依存関係のインストール
 npm install
 
-# Build shared package (required first)
+# 共通パッケージのビルド（最初に必要）
 npm run build --workspace=packages/shared
 
-# Run tests
+# テスト実行
 npm test
 
-# Run linter
+# リンター実行
 npm run lint
 
-# Dev mode
+# 開発モード
 npm run dev:backend
 npm run dev:frontend
 ```
 
-### Project Structure
+### プロジェクト構成
 
 ```
 packages/
-  shared/     # Types, DB schema, migrations
-  backend/    # Fastify API, ingestion, article generation
-  frontend/   # Astro SSR blog reader
+  shared/     # 型定義、DBスキーマ、マイグレーション
+  backend/    # Fastify API、Slack通知
+  frontend/   # Astro SSR ブログリーダー
 ```
 
-### API Endpoints
+### APIエンドポイント
 
-- `GET /api/health` — Health check
-- `GET /api/articles` — List articles (paginated)
-- `GET /api/articles/:slug` — Get article by slug
-- `GET /api/categories` — List categories with counts
-- `POST /api/ingest` — Trigger manual ingestion
+- `GET /api/health` — ヘルスチェック
+- `GET /api/articles` — 記事一覧（ページネーション対応）
+- `GET /api/articles/:slug` — スラッグで記事取得
+- `GET /api/categories` — カテゴリ一覧（件数付き）
+- `POST /api/articles` — 記事投稿
 
-See [docs/specification.md](docs/specification.md) for full API contracts.
+詳細は [docs/specification.md](docs/specification.md) を参照してください。
 
-## Environment Variables
+## 環境変数
 
-| Variable | Required | Description |
+| 変数 | 必須 | 説明 |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Yes | Claude API key |
-| `TTOCLAW_NEWS_ENDPOINT` | Yes | ttoClaw news data URL |
-| `POSTGRES_PASSWORD` | No | DB password (default: changeme) |
-| `INGESTION_CRON` | No | Cron schedule (default: `0 */6 * * *`) |
-| `LOG_LEVEL` | No | Log level (default: info) |
+| `SLACK_WEBHOOK_URL` | いいえ | Slack通知用Webhook URL |
+| `PUBLIC_BASE_URL` | いいえ | 公開ベースURL（デフォルト: http://localhost:3100） |
+| `POSTGRES_PASSWORD` | いいえ | DBパスワード（デフォルト: changeme） |
+| `LOG_LEVEL` | いいえ | ログレベル（デフォルト: info） |
 
-## License
+## ライセンス
 
-MIT - see [LICENSE](LICENSE) for details.
+MIT - 詳細は [LICENSE](LICENSE) を参照してください。

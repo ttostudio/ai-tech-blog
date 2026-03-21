@@ -10,6 +10,7 @@ interface ArticleSummary {
   excerpt: string;
   category: string;
   tags: string[];
+  author: string;
   publishedAt: string | null;
 }
 
@@ -19,8 +20,10 @@ interface ApiResponse {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  'claude-code': 'Claude Code News',
-  'ai-hacks': 'AI Hacks & Trends',
+  'claude-code': 'Claude Codeニュース',
+  'ai-hacks': 'AIハック＆トレンド',
+  'ai-news': 'AIニュース',
+  'tech': 'テクノロジー',
 };
 
 const { name } = Astro.params;
@@ -38,7 +41,7 @@ try {
 <BaseLayout title={displayName}>
   <section class="category-header">
     <h1>{displayName}</h1>
-    <p>{articles.length} articles</p>
+    <p>{articles.length} 件の記事</p>
   </section>
 
   <section class="article-list">
@@ -52,6 +55,7 @@ try {
         excerpt={article.excerpt}
         category={article.category}
         tags={article.tags}
+        author={article.author}
         publishedAt={article.publishedAt}
       />
     ))}
