@@ -1,0 +1,24 @@
+{
+  "name": "@ai-tech-blog/backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@ai-tech-blog/shared": "*",
+    "@anthropic-ai/sdk": "0.39.0",
+    "fastify": "5.2.1",
+    "@fastify/cors": "11.0.1",
+    "node-cron": "3.0.3",
+    "postgres": "3.4.5"
+  },
+  "devDependencies": {
+    "@types/node-cron": "3.0.11",
+    "tsx": "4.19.3"
+  }
+}
