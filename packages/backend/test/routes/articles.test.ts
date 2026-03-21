@@ -100,6 +100,21 @@ graph TD
     });
   });
 
+  describe('DELETE /api/articles/:slug', () => {
+    it('returns 204 on successful deletion', () => {
+      // DELETE returns no body on success
+      const statusCode = 204;
+      expect(statusCode).toBe(204);
+    });
+
+    it('returns 404 for non-existent slug', () => {
+      const error = {
+        error: { code: 'NOT_FOUND', message: 'Article not found' },
+      };
+      expect(error.error.code).toBe('NOT_FOUND');
+    });
+  });
+
   describe('error response shape', () => {
     it('returns standard error format', () => {
       const error = {

@@ -160,4 +160,19 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
 
     return reply.code(201).send(response);
   });
+
+  // Delete article by slug
+  app.delete('/articles/:slug', async (req, reply) => {
+    const { slug } = req.params as { slug: string };
+
+    const rows = await sql`
+      DELETE FROM articles WHERE slug = ${slug} RETURNING id
+    `;
+
+    if (rows.length === 0) {
+      return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Article not found' } });
+    }
+
+    return reply.code(204).send();
+  });
 }
