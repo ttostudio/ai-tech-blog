@@ -1,0 +1,10 @@
+node_modules
+packages/*/node_modules
+packages/*/dist
+.git
+.env
+.env.*
+coverage
+.DS_Store
+*.log
+.claude-brief.md
