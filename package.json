@@ -12,6 +12,7 @@
   "scripts": {
     "build": "npm run build --workspaces",
     "lint": "eslint 'packages/*/src/**/*.{ts,tsx,astro}'",
+    "pretest": "npm run build --workspace=packages/shared",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev:backend": "npm run dev --workspace=packages/backend",
