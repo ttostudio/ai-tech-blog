@@ -58,4 +58,11 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 4,
+    name: 'add_author_to_articles',
+    up: `
+      ALTER TABLE articles ADD COLUMN IF NOT EXISTS author VARCHAR(200) NOT NULL DEFAULT 'anonymous';
+    `,
+  },
 ];

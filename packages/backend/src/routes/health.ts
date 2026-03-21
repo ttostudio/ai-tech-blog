@@ -18,7 +18,6 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
       version: '1.0.0',
       services: {
         database: dbStatus,
-        ingestion: 'ok',
       },
     };
 
