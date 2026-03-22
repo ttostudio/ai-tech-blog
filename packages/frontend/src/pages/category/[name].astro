@@ -125,10 +125,17 @@ const canonicalUrl = `${Astro.url.origin}/category/${name}`;
     font-size: 0.9rem;
   }
 
+  /* Grid: 3列(デスクトップ) / 2列(タブレット) / 1列(モバイル) */
   .article-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1.25rem;
+  }
+
+  @media (max-width: 1024px) {
+    .article-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
   }
 
   /* エラー状態 (F-07) */

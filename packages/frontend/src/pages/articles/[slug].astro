@@ -98,6 +98,27 @@ if (article) {
 }
 
 const canonicalUrl = `${Astro.url.origin}/articles/${slug}`;
+
+// JSON-LD 構造化データ (F-03)
+const jsonLd = article
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: article.title,
+      description: article.excerpt,
+      author: { '@type': 'Person', name: article.author },
+      datePublished: article.publishedAt ?? article.createdAt,
+      dateModified: article.publishedAt ?? article.createdAt,
+      url: canonicalUrl,
+      publisher: {
+        '@type': 'Organization',
+        name: 'ttoStudio',
+        url: Astro.url.origin,
+      },
+      keywords: article.tags.join(', '),
+      articleSection: article.category,
+    }
+  : null;
 ---
 
 <BaseLayout
@@ -108,6 +129,10 @@ const canonicalUrl = `${Astro.url.origin}/articles/${slug}`;
   canonicalUrl={canonicalUrl}
 >
   <Fragment slot="head">
+    {/* JSON-LD 構造化データ (F-03) */}
+    {jsonLd && (
+      <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    )}
     {/* シンタックスハイライト (F-05) */}
     <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" />
     <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" disabled />
