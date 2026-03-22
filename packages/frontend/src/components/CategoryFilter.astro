@@ -17,7 +17,7 @@ const { categories, selectedCategory } = Astro.props;
   <a
     href="/"
     class:list={['filter-btn', { active: !selectedCategory }]}
-    aria-pressed={!selectedCategory ? 'true' : 'false'}
+    aria-current={!selectedCategory ? 'page' : undefined}
   >
     全て
   </a>
@@ -25,7 +25,7 @@ const { categories, selectedCategory } = Astro.props;
     <a
       href={`/?category=${cat.name}`}
       class:list={['filter-btn', { active: selectedCategory === cat.name }]}
-      aria-pressed={selectedCategory === cat.name ? 'true' : 'false'}
+      aria-current={selectedCategory === cat.name ? 'page' : undefined}
     >
       {cat.displayName}
       <span class="filter-count">{cat.articleCount}</span>

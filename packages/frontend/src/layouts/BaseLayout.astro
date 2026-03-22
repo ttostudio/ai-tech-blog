@@ -4,6 +4,7 @@ interface Props {
   description?: string;
   ogTitle?: string;
   ogDescription?: string;
+  ogType?: 'website' | 'article';
   canonicalUrl?: string;
 }
 
@@ -12,6 +13,7 @@ const {
   description = 'AI Tech Blog — AIニュースと技術情報のブログ',
   ogTitle,
   ogDescription,
+  ogType = 'website',
   canonicalUrl,
 } = Astro.props;
 
@@ -34,7 +36,7 @@ const ogImage = `${Astro.url.origin}/og-default.svg`;
     <!-- OG / Twitter Card -->
     <meta property="og:title" content={resolvedOgTitle} />
     <meta property="og:description" content={resolvedOgDescription} />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:url" content={resolvedCanonical} />
     <meta property="og:image" content={ogImage} />
     <meta property="og:site_name" content="AI Tech Blog" />

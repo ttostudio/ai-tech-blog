@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import Pagination from '../components/Pagination.astro';
 import CategoryFilter from '../components/CategoryFilter.astro';
+import SkeletonCard from '../components/SkeletonCard.astro';
 import { fetchApi } from '../lib/api';
 
 interface ArticleSummary {
@@ -31,8 +32,9 @@ interface CategoriesResponse {
   data: Category[];
 }
 
-// SSR: クエリパラメータからページとカテゴリを取得
-const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') ?? '1'));
+// SSR: クエリパラメータからページとカテゴリを取得（NaNガード）
+const pageParam = Astro.url.searchParams.get('page') ?? '1';
+const page = Math.max(1, parseInt(pageParam) || 1);
 const selectedCategory = Astro.url.searchParams.get('category') ?? undefined;
 
 const LIMIT = 12;
@@ -95,12 +97,19 @@ if (selectedCategory) paginationParams.category = selectedCategory;
     </div>
   </section>
 
-  {/* エラー状態 (F-07) */}
+  {/* エラー状態 (F-07) + スケルトン表示 (F-06) */}
   {articlesError && (
-    <div class="error-state">
-      <span class="error-icon">⚠</span>
-      <p>{articlesError}</p>
-    </div>
+    <>
+      <div class="error-state">
+        <span class="error-icon">⚠</span>
+        <p>{articlesError}</p>
+      </div>
+      <div class="article-grid skeleton-grid">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    </>
   )}
 
   {/* カテゴリフィルタ (F-02) — カテゴリ取得成功時のみ表示 */}

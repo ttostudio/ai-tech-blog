@@ -85,8 +85,9 @@ let nextArticle: ArticleSummary | null = null;
 
 if (article) {
   try {
-    const res = await fetchApi<{ data: ArticleSummary[] }>(
-      `/articles?status=published&category=${article.category}&limit=100`
+    const encodedCategory = encodeURIComponent(article.category);
+    const res = await fetchApi<{ data: ArticleSummary[]; pagination: { totalPages: number } }>(
+      `/articles?status=published&category=${encodedCategory}&limit=50`
     );
     const siblings = res.data;
     const idx = siblings.findIndex((a) => a.slug === slug);
@@ -126,6 +127,7 @@ const jsonLd = article
   description={article?.excerpt}
   ogTitle={article ? `${article.title} — AI Tech Blog` : undefined}
   ogDescription={article?.excerpt}
+  ogType="article"
   canonicalUrl={canonicalUrl}
 >
   <Fragment slot="head">

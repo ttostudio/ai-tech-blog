@@ -30,8 +30,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 const { name } = Astro.params;
 const displayName = CATEGORY_LABELS[name ?? ''] ?? name ?? '';
 
-// SSR: クエリパラメータからページを取得
-const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') ?? '1'));
+// SSR: クエリパラメータからページを取得（NaNガード）
+const pageParam = Astro.url.searchParams.get('page') ?? '1';
+const page = Math.max(1, parseInt(pageParam) || 1);
 const LIMIT = 12;
 
 let articles: ArticleSummary[] = [];
