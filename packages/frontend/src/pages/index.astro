@@ -63,16 +63,18 @@ const restArticles = articles.slice(1);
   {featuredArticle && (
     <section class="featured-section">
       <h2 class="section-title">最新の記事</h2>
-      <ArticleCard
-        title={featuredArticle.title}
-        slug={featuredArticle.slug}
-        excerpt={featuredArticle.excerpt}
-        category={featuredArticle.category}
-        tags={featuredArticle.tags}
-        author={featuredArticle.author}
-        publishedAt={featuredArticle.publishedAt}
-        featured={true}
-      />
+      <div style="--i: 0">
+        <ArticleCard
+          title={featuredArticle.title}
+          slug={featuredArticle.slug}
+          excerpt={featuredArticle.excerpt}
+          category={featuredArticle.category}
+          tags={featuredArticle.tags}
+          author={featuredArticle.author}
+          publishedAt={featuredArticle.publishedAt}
+          featured={true}
+        />
+      </div>
     </section>
   )}
 
@@ -80,16 +82,18 @@ const restArticles = articles.slice(1);
     <section class="articles-section">
       <h2 class="section-title">記事一覧</h2>
       <div class="article-grid">
-        {restArticles.map((article) => (
-          <ArticleCard
-            title={article.title}
-            slug={article.slug}
-            excerpt={article.excerpt}
-            category={article.category}
-            tags={article.tags}
-            author={article.author}
-            publishedAt={article.publishedAt}
-          />
+        {restArticles.map((article, index) => (
+          <div style={`--i: ${index + 1}`}>
+            <ArticleCard
+              title={article.title}
+              slug={article.slug}
+              excerpt={article.excerpt}
+              category={article.category}
+              tags={article.tags}
+              author={article.author}
+              publishedAt={article.publishedAt}
+            />
+          </div>
         ))}
       </div>
     </section>
@@ -97,10 +101,25 @@ const restArticles = articles.slice(1);
 </BaseLayout>
 
 <style>
+  @keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
   /* Hero */
   .hero {
     text-align: center;
     padding: 3rem 0 2.5rem;
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-gradient-start) 8%, var(--color-bg)),
+      color-mix(in srgb, var(--color-gradient-end) 8%, var(--color-bg)),
+      color-mix(in srgb, var(--color-gradient-start) 8%, var(--color-bg))
+    );
+    background-size: 200% 200%;
+    animation: gradient-shift 8s ease infinite;
+    border-radius: var(--radius-lg);
   }
 
   .hero-title {
