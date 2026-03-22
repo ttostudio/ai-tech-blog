@@ -30,12 +30,24 @@ const { title, description = 'AI Tech Blog — AIニュースと技術情報の�
           <a href="/category/claude-code">Claude Code</a>
           <a href="/category/ai-hacks">AIハック</a>
         </nav>
+        <button class="hamburger" id="hamburger-btn" aria-label="メニュー" aria-expanded="false">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </button>
         <button class="theme-toggle" id="theme-toggle" aria-label="テーマ切り替え">
           <span class="theme-icon-dark">&#x1F319;</span>
           <span class="theme-icon-light">&#x2600;&#xFE0F;</span>
         </button>
       </div>
     </header>
+
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay"></div>
+    <nav class="mobile-menu" id="mobile-menu" aria-hidden="true">
+      <a href="/">ホーム</a>
+      <a href="/category/claude-code">Claude Code</a>
+      <a href="/category/ai-hacks">AIハック</a>
+    </nav>
 
     <main class="main-content">
       <div class="container">
@@ -86,6 +98,38 @@ const { title, description = 'AI Tech Blog — AIニュースと技術情報の�
           localStorage.setItem('theme', next);
         });
       }
+    </script>
+    <script>
+      const hamburger = document.getElementById('hamburger-btn');
+      const mobileMenu = document.getElementById('mobile-menu');
+      const overlay = document.getElementById('mobile-menu-overlay');
+
+      function openMenu() {
+        hamburger?.setAttribute('aria-expanded', 'true');
+        hamburger?.classList.add('is-active');
+        mobileMenu?.classList.add('is-open');
+        mobileMenu?.setAttribute('aria-hidden', 'false');
+        overlay?.classList.add('is-visible');
+      }
+
+      function closeMenu() {
+        hamburger?.setAttribute('aria-expanded', 'false');
+        hamburger?.classList.remove('is-active');
+        mobileMenu?.classList.remove('is-open');
+        mobileMenu?.setAttribute('aria-hidden', 'true');
+        overlay?.classList.remove('is-visible');
+      }
+
+      hamburger?.addEventListener('click', () => {
+        const isOpen = hamburger.classList.contains('is-active');
+        isOpen ? closeMenu() : openMenu();
+      });
+
+      overlay?.addEventListener('click', closeMenu);
+
+      mobileMenu?.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', closeMenu);
+      });
     </script>
   </body>
 </html>
@@ -324,9 +368,122 @@ const { title, description = 'AI Tech Blog — AIニュースと技術情報の�
     }
   }
 
+  /* ===== Hamburger Button ===== */
+  .hamburger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .hamburger:hover {
+    border-color: var(--color-accent);
+  }
+
+  .hamburger-line {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: var(--color-text);
+    border-radius: 1px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+
+  .hamburger.is-active .hamburger-line:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .hamburger.is-active .hamburger-line:nth-child(2) {
+    opacity: 0;
+  }
+
+  .hamburger.is-active .hamburger-line:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
+  /* ===== Mobile Menu Overlay ===== */
+  .mobile-menu-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 98;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .mobile-menu-overlay.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ===== Mobile Menu ===== */
+  .mobile-menu {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99;
+    flex-direction: column;
+    background: var(--color-glass-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid var(--color-glass-border);
+    box-shadow: var(--shadow-glass);
+    padding: 5rem 1.5rem 1.5rem;
+    transform: translateY(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .mobile-menu a {
+    display: block;
+    color: var(--color-text-secondary);
+    font-size: 1rem;
+    font-weight: 500;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+    transition: color 0.2s ease;
+    text-decoration: none;
+  }
+
+  .mobile-menu a:last-child {
+    border-bottom: none;
+  }
+
+  .mobile-menu a:hover {
+    color: var(--color-accent);
+  }
+
+  .mobile-menu.is-open {
+    transform: translateY(0);
+  }
+
   @media (max-width: 480px) {
     .main-nav {
       display: none;
+    }
+
+    .hamburger {
+      display: flex;
+    }
+
+    .mobile-menu-overlay {
+      display: block;
+      pointer-events: none;
+    }
+
+    .mobile-menu {
+      display: flex;
     }
   }
 </style>
