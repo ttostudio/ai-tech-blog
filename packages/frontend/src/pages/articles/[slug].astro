@@ -100,7 +100,8 @@ if (article) {
 
 const canonicalUrl = `${Astro.url.origin}/articles/${slug}`;
 
-// JSON-LD 構造化データ (F-03)
+// JSON-LD 構造化データ (F-03) — </script> インジェクション対策
+
 const jsonLd = article
   ? {
       '@context': 'https://schema.org',
@@ -120,6 +121,9 @@ const jsonLd = article
       articleSection: article.category,
     }
   : null;
+
+// </script> インジェクション対策: </ を <\/ にエスケープ
+const jsonLdStr = jsonLd ? JSON.stringify(jsonLd).replace(/<\//g, '<\\/') : null;
 ---
 
 <BaseLayout
@@ -131,9 +135,9 @@ const jsonLd = article
   canonicalUrl={canonicalUrl}
 >
   <Fragment slot="head">
-    {/* JSON-LD 構造化データ (F-03) */}
-    {jsonLd && (
-      <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    {/* JSON-LD 構造化データ (F-03) — XSSエスケープ済み */}
+    {jsonLdStr && (
+      <script type="application/ld+json" set:html={jsonLdStr} />
     )}
     {/* シンタックスハイライト (F-05) */}
     <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" />
