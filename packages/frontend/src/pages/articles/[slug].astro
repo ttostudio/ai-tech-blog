@@ -87,7 +87,7 @@ if (article) {
   try {
     const encodedCategory = encodeURIComponent(article.category);
     const res = await fetchApi<{ data: ArticleSummary[]; pagination: { totalPages: number } }>(
-      `/articles?status=published&category=${encodedCategory}&limit=50`
+      `/articles?status=published&category=${encodedCategory}&limit=50&sort=publishedAt:desc`
     );
     const siblings = res.data;
     const idx = siblings.findIndex((a) => a.slug === slug);
