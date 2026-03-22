@@ -1,6 +1,8 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ArticleCard from '../components/ArticleCard.astro';
+import Pagination from '../components/Pagination.astro';
+import CategoryFilter from '../components/CategoryFilter.astro';
 import { fetchApi } from '../lib/api';
 
 interface ArticleSummary {
@@ -19,22 +21,67 @@ interface ApiResponse {
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
-let articles: ArticleSummary[] = [];
-let error = '';
+interface Category {
+  name: string;
+  displayName: string;
+  articleCount: number;
+}
 
+interface CategoriesResponse {
+  data: Category[];
+}
+
+// SSR: クエリパラメータからページとカテゴリを取得（NaNガード）
+const pageParam = Astro.url.searchParams.get('page') ?? '1';
+const page = Math.max(1, parseInt(pageParam) || 1);
+const selectedCategory = Astro.url.searchParams.get('category') ?? undefined;
+
+const LIMIT = 12;
+
+let articles: ArticleSummary[] = [];
+let pagination = { page: 1, limit: LIMIT, total: 0, totalPages: 1 };
+let categories: Category[] = [];
+let articlesError = '';
+
+// 記事一覧取得
 try {
-  const res = await fetchApi<ApiResponse>('/articles?status=published&limit=20');
+  const params = new URLSearchParams({
+    status: 'published',
+    page: String(page),
+    limit: String(LIMIT),
+  });
+  if (selectedCategory) params.set('category', selectedCategory);
+
+  const res = await fetchApi<ApiResponse>(`/articles?${params.toString()}`);
   articles = res.data;
+  pagination = res.pagination;
 } catch (e) {
-  error = '記事の読み込みに失敗しました';
+  articlesError = '記事の読み込みに失敗しました。しばらく経ってから再度お試しください。';
   console.error(e);
+}
+
+// カテゴリ一覧取得（失敗しても記事一覧は表示継続）
+try {
+  const res = await fetchApi<CategoriesResponse>('/categories');
+  categories = res.data;
+} catch (e) {
+  console.error('カテゴリ取得失敗:', e);
 }
 
 const featuredArticle = articles[0] ?? null;
 const restArticles = articles.slice(1);
+
+// ページネーション用の追加クエリパラメータ（category がある場合は引き継ぐ）
+const paginationParams: Record<string, string> = {};
+if (selectedCategory) paginationParams.category = selectedCategory;
 ---
 
-<BaseLayout title="ホーム">
+<BaseLayout
+  title="ホーム"
+  description="AI Tech Blog — AIニュースと技術情報を自動的にお届けするttoStudioのブログ"
+  ogTitle="AI Tech Blog — ttoStudio"
+  ogDescription="AIニュースと技術情報を自動的にお届けするttoStudioのブログ"
+>
   <section class="hero">
     <div class="hero-content">
       <h1 class="hero-title">
@@ -49,9 +96,22 @@ const restArticles = articles.slice(1);
     </div>
   </section>
 
-  {error && <p class="error">{error}</p>}
+  {/* エラー状態 (F-07) + スケルトン表示 (F-06) */}
+  {articlesError && (
+    <>
+      <div class="error-state">
+        <span class="error-icon">⚠</span>
+        <p>{articlesError}</p>
+      </div>
+    </>
+  )}
 
-  {articles.length === 0 && !error && (
+  {/* カテゴリフィルタ (F-02) — カテゴリ取得成功時のみ表示 */}
+  {!articlesError && categories.length > 0 && (
+    <CategoryFilter categories={categories} selectedCategory={selectedCategory} />
+  )}
+
+  {!articlesError && articles.length === 0 && (
     <div class="empty-state">
       <div class="empty-icon">&#x1F4DD;</div>
       <h2>まだ記事がありません</h2>
@@ -98,6 +158,16 @@ const restArticles = articles.slice(1);
       </div>
     </section>
   )}
+
+  {/* ページネーション (F-01) */}
+  {!articlesError && pagination.totalPages > 1 && (
+    <Pagination
+      currentPage={pagination.page}
+      totalPages={pagination.totalPages}
+      baseUrl="/"
+      queryParams={paginationParams}
+    />
+  )}
 </BaseLayout>
 
 <style>
@@ -120,6 +190,7 @@ const restArticles = articles.slice(1);
     background-size: 200% 200%;
     animation: gradient-shift 8s ease infinite;
     border-radius: var(--radius-lg);
+    margin-bottom: 2rem;
   }
 
   .hero-title {
@@ -169,11 +240,36 @@ const restArticles = articles.slice(1);
     margin-bottom: 2rem;
   }
 
-  /* Grid */
+  /* Grid: 3列(デスクトップ) / 2列(タブレット) / 1列(モバイル) */
   .article-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1.25rem;
+  }
+
+  @media (max-width: 1024px) {
+    .article-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  /* Error State (F-07) */
+  .error-state {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-md);
+    color: #ef4444;
+    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+  }
+
+  .error-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
   }
 
   /* Empty State */
@@ -202,12 +298,6 @@ const restArticles = articles.slice(1);
     border-radius: var(--radius-sm);
   }
 
-  .error {
-    text-align: center;
-    color: #ef4444;
-    padding: 3rem 0;
-  }
-
   @media (max-width: 768px) {
     .hero-title {
       font-size: 2rem;
@@ -219,6 +309,12 @@ const restArticles = articles.slice(1);
 
     .article-grid {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .hero-title {
+      font-size: 1.75rem;
     }
   }
 </style>

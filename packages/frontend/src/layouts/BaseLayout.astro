@@ -2,9 +2,25 @@
 interface Props {
   title: string;
   description?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogType?: 'website' | 'article';
+  canonicalUrl?: string;
 }
 
-const { title, description = 'AI Tech Blog — AIニュースと技術情報のブログ' } = Astro.props;
+const {
+  title,
+  description = 'AI Tech Blog — AIニュースと技術情報のブログ',
+  ogTitle,
+  ogDescription,
+  ogType = 'website',
+  canonicalUrl,
+} = Astro.props;
+
+const resolvedOgTitle = ogTitle ?? `${title} | AI Tech Blog`;
+const resolvedOgDescription = ogDescription ?? description;
+const resolvedCanonical = canonicalUrl ?? Astro.url.href;
+const ogImage = `${Astro.url.origin}/og-default.svg`;
 ---
 
 <!doctype html>
@@ -17,6 +33,19 @@ const { title, description = 'AI Tech Blog — AIニュースと技術情報の�
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- OG / Twitter Card -->
+    <meta property="og:title" content={resolvedOgTitle} />
+    <meta property="og:description" content={resolvedOgDescription} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:url" content={resolvedCanonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:site_name" content="AI Tech Blog" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={resolvedOgTitle} />
+    <meta name="twitter:description" content={resolvedOgDescription} />
+    <meta name="twitter:image" content={ogImage} />
+    <link rel="canonical" href={resolvedCanonical} />
+    <slot name="head" />
   </head>
   <body>
     <header class="site-header">

@@ -1,0 +1,85 @@
+---
+interface Category {
+  name: string;
+  displayName: string;
+  articleCount: number;
+}
+
+interface Props {
+  categories: Category[];
+  selectedCategory?: string;
+}
+
+const { categories, selectedCategory } = Astro.props;
+---
+
+<nav class="category-filter" aria-label="カテゴリフィルタ">
+  <a
+    href="/"
+    class:list={['filter-btn', { active: !selectedCategory }]}
+    aria-current={!selectedCategory ? 'page' : undefined}
+  >
+    全て
+  </a>
+  {categories.map((cat) => (
+    <a
+      href={`/?category=${cat.name}`}
+      class:list={['filter-btn', { active: selectedCategory === cat.name }]}
+      aria-current={selectedCategory === cat.name ? 'page' : undefined}
+    >
+      {cat.displayName}
+      <span class="filter-count">{cat.articleCount}</span>
+    </a>
+  ))}
+</nav>
+
+<style>
+  .category-filter {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+  }
+
+  .filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-card-border);
+    text-decoration: none;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .filter-btn:hover:not(.active) {
+    color: var(--color-accent);
+    border-color: rgba(34, 211, 238, 0.3);
+    text-decoration: none;
+  }
+
+  .filter-btn.active {
+    background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+    color: #fff;
+    border-color: transparent;
+    font-weight: 600;
+  }
+
+  .filter-count {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+  }
+
+  .filter-btn:not(.active) .filter-count {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    opacity: 1;
+  }
+</style>

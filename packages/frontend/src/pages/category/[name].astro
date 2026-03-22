@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ArticleCard from '../../components/ArticleCard.astro';
+import Pagination from '../../components/Pagination.astro';
 import { fetchApi } from '../../lib/api';
 
 interface ArticleSummary {
@@ -28,43 +29,84 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const { name } = Astro.params;
 const displayName = CATEGORY_LABELS[name ?? ''] ?? name ?? '';
+
+// SSR: クエリパラメータからページを取得（NaNガード）
+const pageParam = Astro.url.searchParams.get('page') ?? '1';
+const page = Math.max(1, parseInt(pageParam) || 1);
+const LIMIT = 12;
+
 let articles: ArticleSummary[] = [];
+let pagination = { page: 1, limit: LIMIT, total: 0, totalPages: 1 };
+let error = '';
 
 try {
-  const res = await fetchApi<ApiResponse>(`/articles?status=published&category=${name}&limit=50`);
+  const res = await fetchApi<ApiResponse>(
+    `/articles?status=published&category=${name}&page=${page}&limit=${LIMIT}`
+  );
   articles = res.data;
+  pagination = res.pagination;
 } catch (e) {
+  error = '記事の読み込みに失敗しました。しばらく経ってから再度お試しください。';
   console.error(e);
 }
+
+const canonicalUrl = `${Astro.url.origin}/category/${name}`;
 ---
 
-<BaseLayout title={displayName}>
+<BaseLayout
+  title={displayName}
+  description={`${displayName}の記事一覧 — AI Tech Blog`}
+  ogTitle={`${displayName} — AI Tech Blog`}
+  ogDescription={`${displayName}の記事一覧`}
+  canonicalUrl={canonicalUrl}
+>
   <section class="category-header">
     <h1 class="category-title"><span class="gradient-text">{displayName}</span></h1>
-    <p class="category-count">{articles.length} 件の記事</p>
+    {!error && <p class="category-count">{pagination.total} 件の記事</p>}
   </section>
 
+  {/* エラー状態 (F-07) */}
+  {error && (
+    <div class="error-state">
+      <span class="error-icon">⚠</span>
+      <p>{error}</p>
+    </div>
+  )}
+
   <section class="article-grid-section">
-    {articles.length === 0 && (
+    {!error && articles.length === 0 && (
       <div class="empty">
         <p>このカテゴリにはまだ記事がありません。</p>
         <a href="/" class="back-link">&larr; ホームに戻る</a>
       </div>
     )}
-    <div class="article-grid">
-      {articles.map((article) => (
-        <ArticleCard
-          title={article.title}
-          slug={article.slug}
-          excerpt={article.excerpt}
-          category={article.category}
-          tags={article.tags}
-          author={article.author}
-          publishedAt={article.publishedAt}
-        />
-      ))}
-    </div>
+    {articles.length > 0 && (
+      <div class="article-grid">
+        {articles.map((article, index) => (
+          <div style={`--i: ${index}`}>
+            <ArticleCard
+              title={article.title}
+              slug={article.slug}
+              excerpt={article.excerpt}
+              category={article.category}
+              tags={article.tags}
+              author={article.author}
+              publishedAt={article.publishedAt}
+            />
+          </div>
+        ))}
+      </div>
+    )}
   </section>
+
+  {/* ページネーション (F-01) */}
+  {!error && pagination.totalPages > 1 && (
+    <Pagination
+      currentPage={pagination.page}
+      totalPages={pagination.totalPages}
+      baseUrl={`/category/${name}`}
+    />
+  )}
 </BaseLayout>
 
 <style>
@@ -84,10 +126,36 @@ try {
     font-size: 0.9rem;
   }
 
+  /* Grid: 3列(デスクトップ) / 2列(タブレット) / 1列(モバイル) */
   .article-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1.25rem;
+  }
+
+  @media (max-width: 1024px) {
+    .article-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  /* エラー状態 (F-07) */
+  .error-state {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-md);
+    color: #ef4444;
+    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+  }
+
+  .error-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
   }
 
   .empty {
