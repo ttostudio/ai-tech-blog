@@ -1,0 +1,88 @@
+<div class="skeleton-card">
+  <div class="skeleton-content">
+    <div class="skeleton-meta">
+      <div class="skeleton skeleton-badge"></div>
+      <div class="skeleton skeleton-date"></div>
+    </div>
+    <div class="skeleton skeleton-title"></div>
+    <div class="skeleton skeleton-title" style="width: 70%"></div>
+    <div class="skeleton skeleton-excerpt"></div>
+    <div class="skeleton skeleton-excerpt" style="width: 85%"></div>
+    <div class="skeleton skeleton-excerpt" style="width: 60%"></div>
+    <div class="skeleton-footer">
+      <div class="skeleton skeleton-author"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  .skeleton-card {
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .skeleton-content {
+    padding: 1.5rem;
+  }
+
+  .skeleton {
+    border-radius: var(--radius-sm);
+    background: linear-gradient(
+      90deg,
+      var(--color-bg-tertiary) 25%,
+      var(--color-border) 50%,
+      var(--color-bg-tertiary) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  .skeleton-meta {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .skeleton-badge {
+    height: 20px;
+    width: 80px;
+    border-radius: 999px;
+  }
+
+  .skeleton-date {
+    height: 20px;
+    width: 100px;
+  }
+
+  .skeleton-title {
+    height: 22px;
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+
+  .skeleton-excerpt {
+    height: 14px;
+    width: 100%;
+    margin-bottom: 0.4rem;
+  }
+
+  .skeleton-footer {
+    display: flex;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .skeleton-author {
+    height: 24px;
+    width: 120px;
+    border-radius: 999px;
+  }
+</style>

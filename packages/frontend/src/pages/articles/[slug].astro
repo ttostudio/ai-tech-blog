@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import TableOfContents from '../../components/TableOfContents.astro';
 import { fetchApi } from '../../lib/api';
 import { marked } from 'marked';
 
@@ -17,6 +18,14 @@ interface ArticleData {
   createdAt: string;
 }
 
+interface ArticleSummary {
+  id: string;
+  title: string;
+  slug: string;
+  publishedAt: string | null;
+  category: string;
+}
+
 const { slug } = Astro.params;
 let article: ArticleData | null = null;
 
@@ -27,7 +36,40 @@ try {
   return Astro.redirect('/404');
 }
 
-const htmlContent = article ? await marked.parse(article.content) : '';
+// Markdown → HTML
+const rawHtml = article ? await marked.parse(article.content) : '';
+
+// 見出しにIDを付与してTOC用に抽出 (F-04)
+const headingCounts: Record<string, number> = {};
+
+function generateId(text: string): string {
+  const base = text
+    .toLowerCase()
+    .replace(/<[^>]+>/g, '')
+    .replace(/[^\w\s\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim();
+  const count = headingCounts[base] ?? 0;
+  headingCounts[base] = count + 1;
+  return count === 0 ? base : `${base}-${count}`;
+}
+
+interface HeadingItem {
+  level: 2 | 3;
+  id: string;
+  text: string;
+}
+
+const headings: HeadingItem[] = [];
+
+const htmlContent = rawHtml.replace(/<h([23])([^>]*)>([\s\S]*?)<\/h\1>/gi, (_match, level, attrs, inner) => {
+  const text = inner.replace(/<[^>]+>/g, '');
+  const id = generateId(text);
+  headings.push({ level: parseInt(level) as 2 | 3, id, text });
+  return `<h${level}${attrs} id="${id}">${inner}</h${level}>`;
+});
+
 const dateStr = article?.publishedAt
   ? new Date(article.publishedAt).toLocaleDateString('ja-JP', {
       year: 'numeric',
@@ -36,54 +78,132 @@ const dateStr = article?.publishedAt
     })
   : '';
 const readingTime = article ? Math.max(1, Math.ceil(article.content.length / 500)) : 1;
+
+// 前後記事取得 (F-08)
+let prevArticle: ArticleSummary | null = null;
+let nextArticle: ArticleSummary | null = null;
+
+if (article) {
+  try {
+    const res = await fetchApi<{ data: ArticleSummary[] }>(
+      `/articles?status=published&category=${article.category}&limit=100`
+    );
+    const siblings = res.data;
+    const idx = siblings.findIndex((a) => a.slug === slug);
+    if (idx > 0) nextArticle = siblings[idx - 1]; // 新しい順: idx-1 が「次」
+    if (idx >= 0 && idx < siblings.length - 1) prevArticle = siblings[idx + 1]; // 「前」
+  } catch {
+    // 前後記事取得失敗は無視
+  }
+}
+
+const canonicalUrl = `${Astro.url.origin}/articles/${slug}`;
 ---
 
-<BaseLayout title={article?.title ?? '記事'} description={article?.excerpt}>
+<BaseLayout
+  title={article?.title ?? '記事'}
+  description={article?.excerpt}
+  ogTitle={article ? `${article.title} — AI Tech Blog` : undefined}
+  ogDescription={article?.excerpt}
+  canonicalUrl={canonicalUrl}
+>
+  <Fragment slot="head">
+    {/* シンタックスハイライト (F-05) */}
+    <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" />
+    <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" disabled />
+    <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+  </Fragment>
+
   {article && (
-    <article class="article-detail">
-      <header class="article-header">
-        <div class="meta">
-          <a href={`/category/${article.category}`} class="category-badge">{article.category}</a>
-          {dateStr && <time>{dateStr}</time>}
-          <span class="reading-time">{readingTime}分で読めます</span>
-        </div>
-        <h1 class="article-title">{article.title}</h1>
-        <div class="author-row">
-          <span class="author-avatar">{article.author.charAt(0).toUpperCase()}</span>
-          <div class="author-details">
-            <span class="author-name">{article.author}</span>
-            {dateStr && <span class="publish-date">{dateStr} に公開</span>}
+    <div class="article-layout">
+      <article class="article-detail">
+        <header class="article-header">
+          <div class="meta">
+            <a href={`/category/${article.category}`} class="category-badge">{article.category}</a>
+            {dateStr && <time>{dateStr}</time>}
+            <span class="reading-time">{readingTime}分で読めます</span>
           </div>
-        </div>
-        {article.tags.length > 0 && (
-          <div class="tags">
-            {article.tags.map((tag) => <span class="tag">#{tag}</span>)}
+          <h1 class="article-title">{article.title}</h1>
+          <div class="author-row">
+            <span class="author-avatar">{article.author.charAt(0).toUpperCase()}</span>
+            <div class="author-details">
+              <span class="author-name">{article.author}</span>
+              {dateStr && <span class="publish-date">{dateStr} に公開</span>}
+            </div>
           </div>
+          {article.tags.length > 0 && (
+            <div class="tags">
+              {article.tags.map((tag) => <span class="tag">#{tag}</span>)}
+            </div>
+          )}
+        </header>
+
+        <div class="content" set:html={htmlContent} />
+
+        {/* 前後記事ナビゲーション (F-08) */}
+        {(prevArticle || nextArticle) && (
+          <nav class="article-nav" aria-label="前後記事">
+            <div class="article-nav-inner">
+              {prevArticle ? (
+                <a href={`/articles/${prevArticle.slug}`} class="nav-link nav-prev">
+                  <span class="nav-label">&larr; 前の記事</span>
+                  <span class="nav-title">{prevArticle.title}</span>
+                </a>
+              ) : <div />}
+              {nextArticle ? (
+                <a href={`/articles/${nextArticle.slug}`} class="nav-link nav-next">
+                  <span class="nav-label">次の記事 &rarr;</span>
+                  <span class="nav-title">{nextArticle.title}</span>
+                </a>
+              ) : <div />}
+            </div>
+          </nav>
         )}
-      </header>
 
-      <div class="content" set:html={htmlContent} />
+        <footer class="article-footer">
+          <a href="/" class="back-link">&larr; 記事一覧に戻る</a>
+        </footer>
+      </article>
 
-      <footer class="article-footer">
-        <a href="/" class="back-link">&larr; 記事一覧に戻る</a>
-      </footer>
-    </article>
+      {/* 目次サイドバー (F-04): 1200px超でのみ表示 */}
+      <aside class="toc-sidebar">
+        <TableOfContents headings={headings} />
+      </aside>
+    </div>
   )}
 </BaseLayout>
 
-<!-- Mermaid: クライアントサイドで ```mermaid コードブロックを図にレンダリング -->
+<!-- Mermaid & Highlight.js & Copy buttons -->
 <script>
+  // テーマに応じて highlight.js の CSS を切り替え (F-05)
+  function applyHljsTheme() {
+    const theme = document.documentElement.getAttribute('data-theme');
+    const dark = document.getElementById('hljs-dark') as HTMLLinkElement | null;
+    const light = document.getElementById('hljs-light') as HTMLLinkElement | null;
+    if (theme === 'light') {
+      if (dark) dark.disabled = true;
+      if (light) light.disabled = false;
+    } else {
+      if (dark) dark.disabled = false;
+      if (light) light.disabled = true;
+    }
+  }
+
+  applyHljsTheme();
+  const themeObserver = new MutationObserver(applyHljsTheme);
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+
+  // Mermaid レンダリング
   async function renderMermaid() {
     const codeBlocks = document.querySelectorAll('pre code.language-mermaid');
     if (codeBlocks.length === 0) return;
 
     const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
     const theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'default' : 'dark';
-    mermaid.initialize({
-      startOnLoad: false,
-      theme,
-      securityLevel: 'strict',
-    });
+    mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' });
 
     for (const block of codeBlocks) {
       const pre = block.parentElement;
@@ -97,7 +217,7 @@ const readingTime = article ? Math.max(1, Math.ceil(article.content.length / 500
     await mermaid.run({ querySelector: '.mermaid' });
   }
 
-  // Add copy buttons to code blocks
+  // コードブロックにコピーボタン追加
   function addCopyButtons() {
     const codeBlocks = document.querySelectorAll('.content pre');
     for (const block of codeBlocks) {
@@ -113,19 +233,56 @@ const readingTime = article ? Math.max(1, Math.ceil(article.content.length / 500
           setTimeout(() => { btn.textContent = 'コピー'; }, 2000);
         }
       });
-      block.style.position = 'relative';
+      (block as HTMLElement).style.position = 'relative';
       block.appendChild(btn);
     }
   }
 
-  renderMermaid();
-  addCopyButtons();
+  // 初期化: Mermaid → hljs → コピーボタン の順で実行
+  async function init() {
+    await renderMermaid();
+
+    // highlight.js でコードブロックをハイライト（mermaid以外）
+    if (typeof (window as any).hljs !== 'undefined') {
+      document.querySelectorAll('.content pre code:not(.language-mermaid)').forEach((block) => {
+        (window as any).hljs.highlightElement(block);
+      });
+    }
+
+    addCopyButtons();
+  }
+
+  init();
 </script>
 
 <style>
+  /* 記事ページ全体レイアウト: 1200px超でサイドバーTOC表示 (F-04) */
+  .article-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .toc-sidebar {
+    display: none;
+  }
+
+  @media (min-width: 1200px) {
+    .article-layout {
+      grid-template-columns: 1fr 260px;
+      max-width: calc(var(--max-width-article) + 260px + 2rem);
+      margin: 0 auto;
+    }
+
+    .toc-sidebar {
+      display: block;
+    }
+  }
+
   .article-detail {
+    min-width: 0;
     max-width: var(--max-width-article);
-    margin: 0 auto;
   }
 
   /* Header */
@@ -142,6 +299,7 @@ const readingTime = article ? Math.max(1, Math.ceil(article.content.length / 500
     margin-bottom: 1rem;
     font-size: 0.85rem;
     color: var(--color-text-secondary);
+    flex-wrap: wrap;
   }
 
   .reading-time {
@@ -308,6 +466,7 @@ const readingTime = article ? Math.max(1, Math.ceil(article.content.length / 500
     cursor: pointer;
     font-family: var(--font-sans);
     transition: background-color 0.2s ease, color 0.2s ease;
+    z-index: 1;
   }
 
   .content :global(.copy-btn:hover) {
@@ -355,9 +514,63 @@ const readingTime = article ? Math.max(1, Math.ceil(article.content.length / 500
     font-weight: 600;
   }
 
+  /* 前後記事ナビゲーション (F-08) */
+  .article-nav {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .article-nav-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .nav-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 1rem 1.25rem;
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .nav-link:hover {
+    border-color: rgba(34, 211, 238, 0.3);
+    background: var(--color-bg-tertiary);
+    text-decoration: none;
+  }
+
+  .nav-next {
+    text-align: right;
+  }
+
+  .nav-label {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .nav-title {
+    font-size: 0.9rem;
+    color: var(--color-text);
+    font-weight: 600;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
   /* Footer */
   .article-footer {
-    margin-top: 3rem;
+    margin-top: 2rem;
     padding-top: 1.5rem;
     border-top: 1px solid var(--color-border);
   }
@@ -388,6 +601,14 @@ const readingTime = article ? Math.max(1, Math.ceil(article.content.length / 500
 
     .content :global(h3) {
       font-size: 1.15rem;
+    }
+
+    .article-nav-inner {
+      grid-template-columns: 1fr;
+    }
+
+    .nav-next {
+      text-align: left;
     }
   }
 </style>
