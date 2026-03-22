@@ -7,9 +7,10 @@ interface Props {
   tags: string[];
   author: string;
   publishedAt: string | null;
+  featured?: boolean;
 }
 
-const { title, slug, excerpt, category, tags, author, publishedAt } = Astro.props;
+const { title, slug, excerpt, category, tags, author, publishedAt, featured = false } = Astro.props;
 
 const dateStr = publishedAt
   ? new Date(publishedAt).toLocaleDateString('ja-JP', {
@@ -20,87 +21,181 @@ const dateStr = publishedAt
   : '';
 ---
 
-<article class="article-card">
+<article class:list={['article-card', { featured }]}>
   <a href={`/articles/${slug}`}>
-    <div class="card-meta">
-      <span class="category">{category}</span>
-      <span class="author">{author}</span>
-      {dateStr && <time>{dateStr}</time>}
-    </div>
-    <h2>{title}</h2>
-    <p>{excerpt}</p>
-    {tags.length > 0 && (
-      <div class="tags">
-        {tags.map((tag) => (
-          <span class="tag">{tag}</span>
-        ))}
+    <div class="card-content">
+      <div class="card-meta">
+        <span class="category-badge">{category}</span>
+        {dateStr && <time>{dateStr}</time>}
       </div>
-    )}
+      <h2 class="card-title">{title}</h2>
+      <p class="card-excerpt">{excerpt}</p>
+      <div class="card-footer">
+        <span class="author-info">
+          <span class="author-avatar">{author.charAt(0).toUpperCase()}</span>
+          <span class="author-name">{author}</span>
+        </span>
+        {tags.length > 0 && (
+          <div class="tags">
+            {tags.slice(0, 3).map((tag) => (
+              <span class="tag">#{tag}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   </a>
 </article>
 
 <style>
   .article-card {
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 1.5rem;
     background: var(--color-card-bg);
-    transition: border-color 0.2s;
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    box-shadow: var(--shadow-card);
   }
 
   .article-card:hover {
-    border-color: var(--color-accent);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: rgba(34, 211, 238, 0.2);
   }
 
   .article-card a {
     color: inherit;
     text-decoration: none;
+    display: block;
+  }
+
+  .card-content {
+    padding: 1.5rem;
   }
 
   .card-meta {
     display: flex;
-    gap: 1rem;
+    gap: 0.75rem;
     align-items: center;
-    margin-bottom: 0.5rem;
-    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
     color: var(--color-text-secondary);
   }
 
-  .category {
-    background: var(--color-bg-secondary);
-    padding: 0.15rem 0.5rem;
-    border-radius: 4px;
-    font-weight: 500;
+  .category-badge {
+    background: var(--color-badge-bg);
+    color: var(--color-badge-text);
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
   }
 
-  .author {
-    font-style: italic;
-  }
-
-  h2 {
-    font-size: 1.25rem;
+  .card-title {
+    font-size: 1.2rem;
+    font-weight: 700;
     margin-bottom: 0.5rem;
     line-height: 1.4;
+    color: var(--color-text);
+    transition: color 0.2s ease;
   }
 
-  p {
+  .article-card:hover .card-title {
+    background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .card-excerpt {
     color: var(--color-text-secondary);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .author-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .author-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .author-name {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
   }
 
   .tags {
     display: flex;
     gap: 0.5rem;
-    margin-top: 0.75rem;
     flex-wrap: wrap;
   }
 
   .tag {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--color-accent);
-    background: var(--color-bg-secondary);
-    padding: 0.1rem 0.5rem;
-    border-radius: 4px;
+    opacity: 0.7;
+  }
+
+  /* Featured card variant */
+  .featured .card-content {
+    padding: 2rem;
+  }
+
+  .featured .card-title {
+    font-size: 1.5rem;
+    background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .featured .card-excerpt {
+    -webkit-line-clamp: 3;
+    font-size: 0.95rem;
+  }
+
+  @media (max-width: 768px) {
+    .card-content {
+      padding: 1.25rem;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+    }
+
+    .featured .card-content {
+      padding: 1.5rem;
+    }
+
+    .featured .card-title {
+      font-size: 1.25rem;
+    }
   }
 </style>
