@@ -113,7 +113,7 @@ export async function thumbnailRoutes(app: FastifyInstance): Promise<void> {
       data: {
         message: 'サムネイル一括生成を開始しました',
         queued: targetArticles.length,
-        slugs: targetArticles.map((a: { slug: string }) => a.slug),
+        slugs: targetArticles.map((a) => a.slug),
       },
     });
   });
