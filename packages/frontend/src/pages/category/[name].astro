@@ -13,6 +13,7 @@ interface ArticleSummary {
   tags: string[];
   author: string;
   publishedAt: string | null;
+  thumbnailUrl?: string | null;
 }
 
 interface ApiResponse {
@@ -92,6 +93,7 @@ const canonicalUrl = `${Astro.url.origin}/category/${name}`;
               tags={article.tags}
               author={article.author}
               publishedAt={article.publishedAt}
+              thumbnailUrl={article.thumbnailUrl}
             />
           </div>
         ))}

@@ -16,6 +16,7 @@ interface ArticleData {
   status: string;
   publishedAt: string | null;
   createdAt: string;
+  thumbnailUrl?: string | null;
 }
 
 interface ArticleSummary {
@@ -36,8 +37,21 @@ try {
   return Astro.redirect('/404');
 }
 
+/** HTMLサニタイズ: scriptタグ、イベントハンドラ、危険な属性を除去 */
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^>]*>.*?<\/iframe>/gi, '')
+    .replace(/<object\b[^>]*>.*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*\/?>/gi, '')
+    .replace(/<link\b[^>]*\/?>/gi, '')
+    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '')
+    .replace(/javascript\s*:/gi, 'blocked:')
+    .replace(/data\s*:\s*text\/html/gi, 'blocked:');
+}
+
 // Markdown → HTML
-const rawHtml = article ? await marked.parse(article.content) : '';
+const rawHtml = article ? sanitizeHtml(await marked.parse(article.content)) : '';
 
 // 見出しにIDを付与してTOC用に抽出 (F-04)
 const headingCounts: Record<string, number> = {};
@@ -78,6 +92,15 @@ const dateStr = article?.publishedAt
     })
   : '';
 const readingTime = article ? Math.max(1, Math.ceil(article.content.length / 500)) : 1;
+
+const CATEGORY_GRADIENTS: Record<string, string> = {
+  'claude-code': 'linear-gradient(135deg, #22d3ee 0%, #818cf8 100%)',
+  'ai-hacks': 'linear-gradient(135deg, #34d399 0%, #22d3ee 100%)',
+  'ai-news': 'linear-gradient(135deg, #f472b6 0%, #818cf8 100%)',
+  'tech': 'linear-gradient(135deg, #fb923c 0%, #f472b6 100%)',
+};
+const fallbackGradient = article ? (CATEGORY_GRADIENTS[article.category] ?? CATEGORY_GRADIENTS['claude-code']) : '';
+const ogImage = article?.thumbnailUrl ?? undefined;
 
 // 前後記事取得 (F-08)
 let prevArticle: ArticleSummary | null = null;
@@ -129,6 +152,7 @@ const jsonLdStr = jsonLd ? JSON.stringify(jsonLd).replace(/<\//g, '<\\/') : null
 <BaseLayout
   title={article?.title ?? '記事'}
   description={article?.excerpt}
+  ogImage={ogImage}
   ogTitle={article ? `${article.title} — AI Tech Blog` : undefined}
   ogDescription={article?.excerpt}
   ogType="article"
@@ -149,6 +173,29 @@ const jsonLdStr = jsonLd ? JSON.stringify(jsonLd).replace(/<\//g, '<\\/') : null
     <div class="article-layout">
       <article class="article-detail">
         <header class="article-header">
+          {/* アイキャッチ画像: サムネイルがあれば表示、なければグラデーション */}
+          {article.thumbnailUrl ? (
+            <div class="eyecatch-wrapper">
+              <img
+                src={article.thumbnailUrl}
+                alt={article.title}
+                width="1024"
+                height="576"
+                class="eyecatch"
+                decoding="async"
+                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"
+              />
+              <div class="eyecatch-fallback" style={`background: ${fallbackGradient}`}>
+                <span class="eyecatch-fallback-label">{article.category}</span>
+              </div>
+            </div>
+          ) : (
+            <div class="eyecatch-wrapper">
+              <div class="eyecatch-fallback visible" style={`background: ${fallbackGradient}`}>
+                <span class="eyecatch-fallback-label">{article.category}</span>
+              </div>
+            </div>
+          )}
           <div class="meta">
             <a href={`/category/${article.category}`} class="category-badge">{article.category}</a>
             {dateStr && <time>{dateStr}</time>}
@@ -287,6 +334,44 @@ const jsonLdStr = jsonLd ? JSON.stringify(jsonLd).replace(/<\//g, '<\\/') : null
 </script>
 
 <style>
+  /* アイキャッチ画像 */
+  .eyecatch-wrapper {
+    margin-bottom: 1.5rem;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    aspect-ratio: var(--thumbnail-ratio);
+  }
+
+  .eyecatch {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: var(--radius-md);
+  }
+
+  .eyecatch-fallback {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius-md);
+  }
+
+  .eyecatch-fallback.visible {
+    display: flex;
+  }
+
+  .eyecatch-fallback-label {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
   /* 記事ページ全体レイアウト: 1200px超でサイドバーTOC表示 (F-04) */
   .article-layout {
     display: grid;

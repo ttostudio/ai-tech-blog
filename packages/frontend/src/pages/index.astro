@@ -14,6 +14,7 @@ interface ArticleSummary {
   tags: string[];
   author: string;
   publishedAt: string | null;
+  thumbnailUrl?: string | null;
 }
 
 interface ApiResponse {
@@ -132,6 +133,7 @@ if (selectedCategory) paginationParams.category = selectedCategory;
           tags={featuredArticle.tags}
           author={featuredArticle.author}
           publishedAt={featuredArticle.publishedAt}
+          thumbnailUrl={featuredArticle.thumbnailUrl}
           featured={true}
         />
       </div>
@@ -152,6 +154,7 @@ if (selectedCategory) paginationParams.category = selectedCategory;
               tags={article.tags}
               author={article.author}
               publishedAt={article.publishedAt}
+              thumbnailUrl={article.thumbnailUrl}
             />
           </div>
         ))}

@@ -20,7 +20,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         SELECT COUNT(*)::int as total FROM articles WHERE status = ${status} AND category = ${category}
       `;
       rows = await sql`
-        SELECT id, title, slug, excerpt, category, tags, author, status, published_at, created_at
+        SELECT id, title, slug, excerpt, category, tags, author, status, published_at, created_at, thumbnail_url, thumbnail_prompt, thumbnail_status, thumbnail_error, thumbnail_generated_at
         FROM articles
         WHERE status = ${status} AND category = ${category}
         ORDER BY published_at DESC NULLS LAST, created_at DESC
@@ -31,7 +31,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         SELECT COUNT(*)::int as total FROM articles WHERE status = ${status}
       `;
       rows = await sql`
-        SELECT id, title, slug, excerpt, category, tags, author, status, published_at, created_at
+        SELECT id, title, slug, excerpt, category, tags, author, status, published_at, created_at, thumbnail_url, thumbnail_prompt, thumbnail_status, thumbnail_error, thumbnail_generated_at
         FROM articles
         WHERE status = ${status}
         ORDER BY published_at DESC NULLS LAST, created_at DESC
@@ -53,6 +53,11 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         status: r.status,
         publishedAt: r.published_at,
         createdAt: r.created_at,
+        thumbnailUrl: r.thumbnail_url ?? null,
+        thumbnailPrompt: r.thumbnail_prompt ?? null,
+        thumbnailStatus: r.thumbnail_status ?? 'none',
+        thumbnailError: r.thumbnail_error ?? null,
+        thumbnailGeneratedAt: r.thumbnail_generated_at ?? null,
       })),
       pagination: {
         page: pageNum,
@@ -93,6 +98,11 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         publishedAt: article.published_at,
         createdAt: article.created_at,
         updatedAt: article.updated_at,
+        thumbnailUrl: article.thumbnail_url ?? null,
+        thumbnailPrompt: article.thumbnail_prompt ?? null,
+        thumbnailStatus: article.thumbnail_status ?? 'none',
+        thumbnailError: article.thumbnail_error ?? null,
+        thumbnailGeneratedAt: article.thumbnail_generated_at ?? null,
       },
     };
 
@@ -155,6 +165,11 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         publishedAt: article.published_at,
         createdAt: article.created_at,
         updatedAt: article.updated_at,
+        thumbnailUrl: article.thumbnail_url ?? null,
+        thumbnailPrompt: article.thumbnail_prompt ?? null,
+        thumbnailStatus: article.thumbnail_status ?? 'none',
+        thumbnailError: article.thumbnail_error ?? null,
+        thumbnailGeneratedAt: article.thumbnail_generated_at ?? null,
       },
     };
 
