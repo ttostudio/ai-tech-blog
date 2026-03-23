@@ -1,4 +1,6 @@
 ---
+import SearchOverlay from '../components/SearchOverlay.astro';
+
 interface Props {
   title: string;
   description?: string;
@@ -64,6 +66,7 @@ const ogImage = `${Astro.url.origin}/og-default.svg`;
           <span class="hamburger-line"></span>
           <span class="hamburger-line"></span>
         </button>
+        <SearchOverlay />
         <button class="theme-toggle" id="theme-toggle" aria-label="テーマ切り替え">
           <span class="theme-icon-dark">&#x1F319;</span>
           <span class="theme-icon-light">&#x2600;&#xFE0F;</span>
