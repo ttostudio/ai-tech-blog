@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import TableOfContents from '../../components/TableOfContents.astro';
 import { fetchApi } from '../../lib/api';
 import { marked } from 'marked';
 
@@ -16,6 +17,14 @@ interface ArticleData {
   publishedAt: string | null;
   createdAt: string;
   thumbnailUrl?: string | null;
+}
+
+interface ArticleSummary {
+  id: string;
+  title: string;
+  slug: string;
+  publishedAt: string | null;
+  category: string;
 }
 
 const { slug } = Astro.params;
@@ -41,8 +50,40 @@ function sanitizeHtml(html: string): string {
     .replace(/data\s*:\s*text\/html/gi, 'blocked:');
 }
 
-const rawHtml = article ? await marked.parse(article.content) : '';
-const htmlContent = sanitizeHtml(rawHtml);
+// Markdown → HTML
+const rawHtml = article ? sanitizeHtml(await marked.parse(article.content)) : '';
+
+// 見出しにIDを付与してTOC用に抽出 (F-04)
+const headingCounts: Record<string, number> = {};
+
+function generateId(text: string): string {
+  const base = text
+    .toLowerCase()
+    .replace(/<[^>]+>/g, '')
+    .replace(/[^\w\s\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim();
+  const count = headingCounts[base] ?? 0;
+  headingCounts[base] = count + 1;
+  return count === 0 ? base : `${base}-${count}`;
+}
+
+interface HeadingItem {
+  level: 2 | 3;
+  id: string;
+  text: string;
+}
+
+const headings: HeadingItem[] = [];
+
+const htmlContent = rawHtml.replace(/<h([23])([^>]*)>([\s\S]*?)<\/h\1>/gi, (_match, level, attrs, inner) => {
+  const text = inner.replace(/<[^>]+>/g, '');
+  const id = generateId(text);
+  headings.push({ level: parseInt(level) as 2 | 3, id, text });
+  return `<h${level}${attrs} id="${id}">${inner}</h${level}>`;
+});
+
 const dateStr = article?.publishedAt
   ? new Date(article.publishedAt).toLocaleDateString('ja-JP', {
       year: 'numeric',
@@ -50,73 +91,197 @@ const dateStr = article?.publishedAt
       day: 'numeric',
     })
   : '';
+const readingTime = article ? Math.max(1, Math.ceil(article.content.length / 500)) : 1;
 
 const CATEGORY_GRADIENTS: Record<string, string> = {
-  'claude-code': 'linear-gradient(135deg, #667eea, #764ba2)',
-  'ai-hacks': 'linear-gradient(135deg, #f093fb, #f5576c)',
-  'ai-news': 'linear-gradient(135deg, #4facfe, #00f2fe)',
-  'tech': 'linear-gradient(135deg, #43e97b, #38f9d7)',
+  'claude-code': 'linear-gradient(135deg, #22d3ee 0%, #818cf8 100%)',
+  'ai-hacks': 'linear-gradient(135deg, #34d399 0%, #22d3ee 100%)',
+  'ai-news': 'linear-gradient(135deg, #f472b6 0%, #818cf8 100%)',
+  'tech': 'linear-gradient(135deg, #fb923c 0%, #f472b6 100%)',
 };
 const fallbackGradient = article ? (CATEGORY_GRADIENTS[article.category] ?? CATEGORY_GRADIENTS['claude-code']) : '';
-const ogImage = article?.thumbnailUrl ?? '/og-default.png';
+const ogImage = article?.thumbnailUrl ?? undefined;
+
+// 前後記事取得 (F-08)
+let prevArticle: ArticleSummary | null = null;
+let nextArticle: ArticleSummary | null = null;
+
+if (article) {
+  try {
+    const encodedCategory = encodeURIComponent(article.category);
+    const res = await fetchApi<{ data: ArticleSummary[]; pagination: { totalPages: number } }>(
+      `/articles?status=published&category=${encodedCategory}&limit=50&sort=publishedAt:desc`
+    );
+    const siblings = res.data;
+    const idx = siblings.findIndex((a) => a.slug === slug);
+    if (idx > 0) nextArticle = siblings[idx - 1]; // 新しい順: idx-1 が「次」
+    if (idx >= 0 && idx < siblings.length - 1) prevArticle = siblings[idx + 1]; // 「前」
+  } catch {
+    // 前後記事取得失敗は無視
+  }
+}
+
+const canonicalUrl = `${Astro.url.origin}/articles/${slug}`;
+
+// JSON-LD 構造化データ (F-03) — </script> インジェクション対策
+
+const jsonLd = article
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: article.title,
+      description: article.excerpt,
+      author: { '@type': 'Person', name: article.author },
+      datePublished: article.publishedAt ?? article.createdAt,
+      dateModified: article.publishedAt ?? article.createdAt,
+      url: canonicalUrl,
+      publisher: {
+        '@type': 'Organization',
+        name: 'ttoStudio',
+        url: Astro.url.origin,
+      },
+      keywords: article.tags.join(', '),
+      articleSection: article.category,
+    }
+  : null;
+
+// </script> インジェクション対策: </ を <\/ にエスケープ
+const jsonLdStr = jsonLd ? JSON.stringify(jsonLd).replace(/<\//g, '<\\/') : null;
 ---
 
-<BaseLayout title={article?.title ?? '記事'} description={article?.excerpt} ogImage={ogImage}>
-  {article && (
-    <article class="article-detail">
-      <header>
-        {article.thumbnailUrl ? (
-          <div class="eyecatch-wrapper">
-            <img
-              src={article.thumbnailUrl}
-              alt={article.title}
-              width="1024"
-              height="576"
-              class="eyecatch"
-              decoding="async"
-              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"
-            />
-            <div class="eyecatch-fallback" style={`background: ${fallbackGradient}`}>
-              <span class="eyecatch-fallback-label">{article.category}</span>
-            </div>
-          </div>
-        ) : (
-          <div class="eyecatch-wrapper">
-            <div class="eyecatch-fallback visible" style={`background: ${fallbackGradient}`}>
-              <span class="eyecatch-fallback-label">{article.category}</span>
-            </div>
-          </div>
-        )}
-        <div class="meta">
-          <a href={`/category/${article.category}`} class="category">{article.category}</a>
-          <span class="author">著者: {article.author}</span>
-          {dateStr && <time>{dateStr}</time>}
-        </div>
-        <h1>{article.title}</h1>
-        {article.tags.length > 0 && (
-          <div class="tags">
-            {article.tags.map((tag) => <span class="tag">{tag}</span>)}
-          </div>
-        )}
-      </header>
+<BaseLayout
+  title={article?.title ?? '記事'}
+  description={article?.excerpt}
+  ogImage={ogImage}
+  ogTitle={article ? `${article.title} — AI Tech Blog` : undefined}
+  ogDescription={article?.excerpt}
+  ogType="article"
+  canonicalUrl={canonicalUrl}
+>
+  <Fragment slot="head">
+    {/* JSON-LD 構造化データ (F-03) — XSSエスケープ済み */}
+    {jsonLdStr && (
+      <script type="application/ld+json" set:html={jsonLdStr} />
+    )}
+    {/* シンタックスハイライト (F-05) */}
+    <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" />
+    <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" disabled />
+    <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+  </Fragment>
 
-      <div class="content" set:html={htmlContent} />
-    </article>
+  {article && (
+    <div class="article-layout">
+      <article class="article-detail">
+        <header class="article-header">
+          {/* アイキャッチ画像: サムネイルがあれば表示、なければグラデーション */}
+          {article.thumbnailUrl ? (
+            <div class="eyecatch-wrapper">
+              <img
+                src={article.thumbnailUrl}
+                alt={article.title}
+                width="1024"
+                height="576"
+                class="eyecatch"
+                decoding="async"
+                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"
+              />
+              <div class="eyecatch-fallback" style={`background: ${fallbackGradient}`}>
+                <span class="eyecatch-fallback-label">{article.category}</span>
+              </div>
+            </div>
+          ) : (
+            <div class="eyecatch-wrapper">
+              <div class="eyecatch-fallback visible" style={`background: ${fallbackGradient}`}>
+                <span class="eyecatch-fallback-label">{article.category}</span>
+              </div>
+            </div>
+          )}
+          <div class="meta">
+            <a href={`/category/${article.category}`} class="category-badge">{article.category}</a>
+            {dateStr && <time>{dateStr}</time>}
+            <span class="reading-time">{readingTime}分で読めます</span>
+          </div>
+          <h1 class="article-title">{article.title}</h1>
+          <div class="author-row">
+            <span class="author-avatar">{article.author.charAt(0).toUpperCase()}</span>
+            <div class="author-details">
+              <span class="author-name">{article.author}</span>
+              {dateStr && <span class="publish-date">{dateStr} に公開</span>}
+            </div>
+          </div>
+          {article.tags.length > 0 && (
+            <div class="tags">
+              {article.tags.map((tag) => <span class="tag">#{tag}</span>)}
+            </div>
+          )}
+        </header>
+
+        <div class="content" set:html={htmlContent} />
+
+        {/* 前後記事ナビゲーション (F-08) */}
+        {(prevArticle || nextArticle) && (
+          <nav class="article-nav" aria-label="前後記事">
+            <div class="article-nav-inner">
+              {prevArticle ? (
+                <a href={`/articles/${prevArticle.slug}`} class="nav-link nav-prev">
+                  <span class="nav-label">&larr; 前の記事</span>
+                  <span class="nav-title">{prevArticle.title}</span>
+                </a>
+              ) : <div />}
+              {nextArticle ? (
+                <a href={`/articles/${nextArticle.slug}`} class="nav-link nav-next">
+                  <span class="nav-label">次の記事 &rarr;</span>
+                  <span class="nav-title">{nextArticle.title}</span>
+                </a>
+              ) : <div />}
+            </div>
+          </nav>
+        )}
+
+        <footer class="article-footer">
+          <a href="/" class="back-link">&larr; 記事一覧に戻る</a>
+        </footer>
+      </article>
+
+      {/* 目次サイドバー (F-04): 1200px超でのみ表示 */}
+      <aside class="toc-sidebar">
+        <TableOfContents headings={headings} />
+      </aside>
+    </div>
   )}
 </BaseLayout>
 
-<!-- Mermaid: クライアントサイドで ```mermaid コードブロックを図にレンダリング -->
+<!-- Mermaid & Highlight.js & Copy buttons -->
 <script>
+  // テーマに応じて highlight.js の CSS を切り替え (F-05)
+  function applyHljsTheme() {
+    const theme = document.documentElement.getAttribute('data-theme');
+    const dark = document.getElementById('hljs-dark') as HTMLLinkElement | null;
+    const light = document.getElementById('hljs-light') as HTMLLinkElement | null;
+    if (theme === 'light') {
+      if (dark) dark.disabled = true;
+      if (light) light.disabled = false;
+    } else {
+      if (dark) dark.disabled = false;
+      if (light) light.disabled = true;
+    }
+  }
+
+  applyHljsTheme();
+  const themeObserver = new MutationObserver(applyHljsTheme);
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+
+  // Mermaid レンダリング
   async function renderMermaid() {
     const codeBlocks = document.querySelectorAll('pre code.language-mermaid');
     if (codeBlocks.length === 0) return;
 
     const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
-      securityLevel: 'strict',
-    });
+    const theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'default' : 'dark';
+    mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' });
 
     for (const block of codeBlocks) {
       const pre = block.parentElement;
@@ -130,13 +295,49 @@ const ogImage = article?.thumbnailUrl ?? '/og-default.png';
     await mermaid.run({ querySelector: '.mermaid' });
   }
 
-  renderMermaid();
+  // コードブロックにコピーボタン追加
+  function addCopyButtons() {
+    const codeBlocks = document.querySelectorAll('.content pre');
+    for (const block of codeBlocks) {
+      if (block.querySelector('.copy-btn')) continue;
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.textContent = 'コピー';
+      btn.addEventListener('click', async () => {
+        const code = block.querySelector('code');
+        if (code) {
+          await navigator.clipboard.writeText(code.textContent ?? '');
+          btn.textContent = 'コピー済み!';
+          setTimeout(() => { btn.textContent = 'コピー'; }, 2000);
+        }
+      });
+      (block as HTMLElement).style.position = 'relative';
+      block.appendChild(btn);
+    }
+  }
+
+  // 初期化: Mermaid → hljs → コピーボタン の順で実行
+  async function init() {
+    await renderMermaid();
+
+    // highlight.js でコードブロックをハイライト（mermaid以外）
+    if (typeof (window as any).hljs !== 'undefined') {
+      document.querySelectorAll('.content pre code:not(.language-mermaid)').forEach((block) => {
+        (window as any).hljs.highlightElement(block);
+      });
+    }
+
+    addCopyButtons();
+  }
+
+  init();
 </script>
 
 <style>
+  /* アイキャッチ画像 */
   .eyecatch-wrapper {
     margin-bottom: 1.5rem;
-    border-radius: var(--thumbnail-radius);
+    border-radius: var(--radius-md);
     overflow: hidden;
     aspect-ratio: var(--thumbnail-ratio);
   }
@@ -146,7 +347,7 @@ const ogImage = article?.thumbnailUrl ?? '/og-default.png';
     height: 100%;
     object-fit: cover;
     display: block;
-    border-radius: var(--thumbnail-radius);
+    border-radius: var(--radius-md);
   }
 
   .eyecatch-fallback {
@@ -155,7 +356,7 @@ const ogImage = article?.thumbnailUrl ?? '/og-default.png';
     justify-content: center;
     width: 100%;
     height: 100%;
-    border-radius: var(--thumbnail-radius);
+    border-radius: var(--radius-md);
   }
 
   .eyecatch-fallback.visible {
@@ -171,33 +372,117 @@ const ogImage = article?.thumbnailUrl ?? '/og-default.png';
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 
-  .article-detail header {
-    margin-bottom: 2rem;
+  /* 記事ページ全体レイアウト: 1200px超でサイドバーTOC表示 (F-04) */
+  .article-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .toc-sidebar {
+    display: none;
+  }
+
+  @media (min-width: 1200px) {
+    .article-layout {
+      grid-template-columns: 1fr 260px;
+      max-width: calc(var(--max-width-article) + 260px + 2rem);
+      margin: 0 auto;
+    }
+
+    .toc-sidebar {
+      display: block;
+    }
+  }
+
+  .article-detail {
+    min-width: 0;
+    max-width: var(--max-width-article);
+  }
+
+  /* Header */
+  .article-header {
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .meta {
     display: flex;
-    gap: 1rem;
+    gap: 0.75rem;
     align-items: center;
     margin-bottom: 1rem;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    flex-wrap: wrap;
+  }
+
+  .reading-time {
+    font-size: 0.85rem;
     color: var(--color-text-secondary);
   }
 
-  .category {
-    background: var(--color-bg-secondary);
-    padding: 0.15rem 0.5rem;
-    border-radius: 4px;
+  .category-badge {
+    background: var(--color-badge-bg);
+    color: var(--color-badge-text);
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-decoration: none;
   }
 
-  .author {
-    font-style: italic;
+  .category-badge:hover {
+    text-decoration: none;
+    opacity: 0.8;
   }
 
-  h1 {
-    font-size: 2rem;
+  .article-title {
+    font-size: 2.25rem;
+    font-weight: 900;
     line-height: 1.3;
-    margin-bottom: 0.75rem;
+    margin-bottom: 1.25rem;
+    background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .author-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .author-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .author-details {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .author-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  .publish-date {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
   }
 
   .tags {
@@ -209,65 +494,237 @@ const ogImage = article?.thumbnailUrl ?? '/og-default.png';
   .tag {
     font-size: 0.8rem;
     color: var(--color-accent);
-    background: var(--color-bg-secondary);
-    padding: 0.1rem 0.5rem;
-    border-radius: 4px;
+    background: var(--color-badge-bg);
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-sm);
   }
 
+  /* Article Content */
   .content {
+    font-size: 1.125rem;
     line-height: 1.8;
   }
 
   .content :global(h2) {
-    font-size: 1.5rem;
-    margin: 2rem 0 1rem;
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 2.5rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+    background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
   .content :global(h3) {
-    font-size: 1.25rem;
-    margin: 1.5rem 0 0.75rem;
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 2rem 0 0.75rem;
+    color: var(--color-accent);
+  }
+
+  .content :global(h4) {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.5rem;
   }
 
   .content :global(p) {
-    margin: 1rem 0;
+    margin: 1.25rem 0;
   }
 
   .content :global(ul), .content :global(ol) {
-    margin: 1rem 0;
+    margin: 1.25rem 0;
     padding-left: 1.5rem;
   }
 
   .content :global(li) {
-    margin: 0.25rem 0;
+    margin: 0.35rem 0;
   }
 
   .content :global(blockquote) {
     border-left: 3px solid var(--color-accent);
-    padding-left: 1rem;
-    margin: 1rem 0;
+    padding: 0.75rem 1.25rem;
+    margin: 1.5rem 0;
     color: var(--color-text-secondary);
+    background: var(--color-bg-tertiary);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
   }
 
   .content :global(img) {
     max-width: 100%;
     height: auto;
-    border-radius: 8px;
-    margin: 1rem 0;
+    border-radius: var(--radius-md);
+    margin: 1.5rem 0;
   }
 
   .content :global(pre) {
-    background: var(--color-bg-secondary);
-    padding: 1rem;
-    border-radius: 8px;
+    background: var(--color-code-bg);
+    padding: 1.25rem;
+    border-radius: var(--radius-md);
     overflow-x: auto;
-    margin: 1rem 0;
+    margin: 1.5rem 0;
+    border: 1px solid var(--color-border);
+    font-size: 0.875rem;
+  }
+
+  .content :global(.copy-btn) {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: background-color 0.2s ease, color 0.2s ease;
+    z-index: 1;
+  }
+
+  .content :global(.copy-btn:hover) {
+    background: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
   }
 
   .content :global(.mermaid) {
     text-align: center;
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: var(--color-bg-tertiary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+  }
+
+  .content :global(a) {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-decoration-color: rgba(34, 211, 238, 0.3);
+    text-underline-offset: 2px;
+    transition: text-decoration-color 0.2s ease;
+  }
+
+  .content :global(a:hover) {
+    text-decoration-color: var(--color-accent);
+  }
+
+  .content :global(table) {
+    width: 100%;
+    border-collapse: collapse;
     margin: 1.5rem 0;
-    padding: 1rem;
-    background: var(--color-bg-secondary);
-    border-radius: 8px;
+  }
+
+  .content :global(th),
+  .content :global(td) {
+    border: 1px solid var(--color-border);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+  }
+
+  .content :global(th) {
+    background: var(--color-bg-tertiary);
+    font-weight: 600;
+  }
+
+  /* 前後記事ナビゲーション (F-08) */
+  .article-nav {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .article-nav-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .nav-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 1rem 1.25rem;
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .nav-link:hover {
+    border-color: rgba(34, 211, 238, 0.3);
+    background: var(--color-bg-tertiary);
+    text-decoration: none;
+  }
+
+  .nav-next {
+    text-align: right;
+  }
+
+  .nav-label {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .nav-title {
+    font-size: 0.9rem;
+    color: var(--color-text);
+    font-weight: 600;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Footer */
+  .article-footer {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .back-link {
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    transition: color 0.2s ease;
+  }
+
+  .back-link:hover {
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+
+  @media (max-width: 768px) {
+    .article-title {
+      font-size: 1.75rem;
+    }
+
+    .content {
+      font-size: 1rem;
+    }
+
+    .content :global(h2) {
+      font-size: 1.35rem;
+    }
+
+    .content :global(h3) {
+      font-size: 1.15rem;
+    }
+
+    .article-nav-inner {
+      grid-template-columns: 1fr;
+    }
+
+    .nav-next {
+      text-align: left;
+    }
   }
 </style>

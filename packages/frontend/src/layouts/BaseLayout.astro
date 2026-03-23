@@ -1,49 +1,172 @@
 ---
+import SearchOverlay from '../components/SearchOverlay.astro';
+
 interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogType?: 'website' | 'article';
+  canonicalUrl?: string;
 }
 
-const { title, description = 'AI Tech Blog — AIニュースと技術情報のブログ', ogImage = '/og-default.png' } = Astro.props;
+const {
+  title,
+  description = 'AI Tech Blog — AIニュースと技術情報のブログ',
+  ogImage: ogImageProp,
+  ogTitle,
+  ogDescription,
+  ogType = 'website',
+  canonicalUrl,
+} = Astro.props;
+
+const resolvedOgTitle = ogTitle ?? `${title} | AI Tech Blog`;
+const resolvedOgDescription = ogDescription ?? description;
+const resolvedCanonical = canonicalUrl ?? Astro.url.href;
+const ogImage = ogImageProp ?? `${Astro.url.origin}/og-default.svg`;
 ---
 
 <!doctype html>
-<html lang="ja">
+<html lang="ja" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    <meta property="og:title" content={`${title} | AI Tech Blog`} />
-    <meta property="og:description" content={description} />
+    <title>{title} | AI Tech Blog</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- OG / Twitter Card -->
+    <meta property="og:title" content={resolvedOgTitle} />
+    <meta property="og:description" content={resolvedOgDescription} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:url" content={resolvedCanonical} />
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1024" />
     <meta property="og:image:height" content="576" />
+    <meta property="og:site_name" content="AI Tech Blog" />
     <meta name="twitter:card" content="summary_large_image" />
-    <title>{title} | AI Tech Blog</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="twitter:title" content={resolvedOgTitle} />
+    <meta name="twitter:description" content={resolvedOgDescription} />
+    <meta name="twitter:image" content={ogImage} />
+    <link rel="canonical" href={resolvedCanonical} />
+    <slot name="head" />
   </head>
   <body>
     <header class="site-header">
-      <div class="container">
-        <a href="/" class="logo">AI Tech Blog</a>
-        <nav>
+      <div class="header-inner">
+        <a href="/" class="logo">
+          <span class="logo-icon">&#x26A1;</span>
+          <span class="logo-text">AI Tech Blog</span>
+        </a>
+        <nav class="main-nav">
           <a href="/">ホーム</a>
           <a href="/category/claude-code">Claude Code</a>
           <a href="/category/ai-hacks">AIハック</a>
         </nav>
+        <button class="hamburger" id="hamburger-btn" aria-label="メニュー" aria-expanded="false">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </button>
+        <SearchOverlay />
+        <button class="theme-toggle" id="theme-toggle" aria-label="テーマ切り替え">
+          <span class="theme-icon-dark">&#x1F319;</span>
+          <span class="theme-icon-light">&#x2600;&#xFE0F;</span>
+        </button>
       </div>
     </header>
 
-    <main class="container">
-      <slot />
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay"></div>
+    <nav class="mobile-menu" id="mobile-menu" aria-hidden="true">
+      <a href="/">ホーム</a>
+      <a href="/category/claude-code">Claude Code</a>
+      <a href="/category/ai-hacks">AIハック</a>
+    </nav>
+
+    <main class="main-content">
+      <div class="container">
+        <slot />
+      </div>
     </main>
 
     <footer class="site-footer">
       <div class="container">
-        <p><a href="https://github.com/ttostudio/ttoClaw">ttoClaw</a> が収集・執筆した記事を自動公開しています</p>
+        <div class="footer-inner">
+          <div class="footer-brand">
+            <span class="footer-logo gradient-text">AI Tech Blog</span>
+            <p class="footer-description">ttoStudio が運営するAIニュースと技術情報のブログ</p>
+          </div>
+          <div class="footer-links">
+            <h3>リンク</h3>
+            <a href="https://github.com/ttostudio" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="https://github.com/ttostudio/ai-tech-blog" target="_blank" rel="noopener noreferrer">ソースコード</a>
+          </div>
+          <div class="footer-info">
+            <h3>情報</h3>
+            <a href="/">ホーム</a>
+            <a href="/category/claude-code">Claude Code</a>
+            <a href="/category/ai-hacks">AIハック</a>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <p>&copy; 2026 ttoStudio. All rights reserved.</p>
+          <span class="powered-badge">Powered by AI</span>
+        </div>
       </div>
     </footer>
+
+    <script is:inline>
+      (function() {
+        const saved = localStorage.getItem('theme');
+        const theme = saved || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <script>
+      const toggle = document.getElementById('theme-toggle');
+      if (toggle) {
+        toggle.addEventListener('click', () => {
+          const current = document.documentElement.getAttribute('data-theme');
+          const next = current === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', next);
+          localStorage.setItem('theme', next);
+        });
+      }
+    </script>
+    <script>
+      const hamburger = document.getElementById('hamburger-btn');
+      const mobileMenu = document.getElementById('mobile-menu');
+      const overlay = document.getElementById('mobile-menu-overlay');
+
+      function openMenu() {
+        hamburger?.setAttribute('aria-expanded', 'true');
+        hamburger?.classList.add('is-active');
+        mobileMenu?.classList.add('is-open');
+        mobileMenu?.setAttribute('aria-hidden', 'false');
+        overlay?.classList.add('is-visible');
+      }
+
+      function closeMenu() {
+        hamburger?.setAttribute('aria-expanded', 'false');
+        hamburger?.classList.remove('is-active');
+        mobileMenu?.classList.remove('is-open');
+        mobileMenu?.setAttribute('aria-hidden', 'true');
+        overlay?.classList.remove('is-visible');
+      }
+
+      hamburger?.addEventListener('click', () => {
+        const isOpen = hamburger.classList.contains('is-active');
+        isOpen ? closeMenu() : openMenu();
+      });
+
+      overlay?.addEventListener('click', closeMenu);
+
+      mobileMenu?.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', closeMenu);
+      });
+    </script>
   </body>
 </html>
 
@@ -53,56 +176,350 @@ const { title, description = 'AI Tech Blog — AIニュースと技術情報の�
   .container {
     max-width: var(--max-width);
     margin: 0 auto;
-    padding: 0 1rem;
+    padding: 0 1.5rem;
   }
 
+  /* ===== Header (Glassmorphism) ===== */
   .site-header {
-    border-bottom: 1px solid var(--color-border);
-    padding: 1rem 0;
-    margin-bottom: 2rem;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--color-glass-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid var(--color-glass-border);
+    box-shadow: var(--shadow-glass);
+    padding: 0;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
   }
 
-  .site-header .container {
+  .header-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0.875rem 1.5rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
 
   .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-size: 1.25rem;
     font-weight: 700;
     color: var(--color-text);
+    text-decoration: none;
   }
 
   .logo:hover {
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  .logo-icon {
+    font-size: 1.4rem;
+  }
+
+  .logo-text {
+    background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .main-nav {
+    display: flex;
+    gap: 2rem;
+  }
+
+  .main-nav a {
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.25rem 0;
+    position: relative;
+    transition: color 0.2s ease;
+  }
+
+  .main-nav a:hover {
     color: var(--color-accent);
     text-decoration: none;
   }
 
-  nav {
+  .main-nav a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--color-gradient-start), var(--color-gradient-end));
+    border-radius: 1px;
+    transition: width 0.3s ease;
+  }
+
+  .main-nav a:hover::after {
+    width: 100%;
+  }
+
+  /* Theme Toggle */
+  .theme-toggle {
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
     display: flex;
-    gap: 1.5rem;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   }
 
-  nav a {
+  .theme-toggle:hover {
+    border-color: var(--color-accent);
+    transform: scale(1.05);
+  }
+
+  [data-theme="dark"] .theme-icon-light {
+    display: none;
+  }
+
+  [data-theme="light"] .theme-icon-dark {
+    display: none;
+  }
+
+  /* ===== Main Content ===== */
+  .main-content {
+    padding-top: 5rem;
+    min-height: calc(100vh - 200px);
+  }
+
+  /* ===== Footer (Glassmorphism) ===== */
+  .site-footer {
+    margin-top: 4rem;
+    background: var(--color-glass-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-top: 1px solid var(--color-glass-border);
+    padding: 3rem 0 1.5rem;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+  }
+
+  .footer-inner {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .footer-logo {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  .footer-description {
+    margin-top: 0.5rem;
     color: var(--color-text-secondary);
-    font-size: 0.9rem;
+    font-size: 0.875rem;
+    line-height: 1.6;
   }
 
-  nav a:hover {
+  .footer-links h3,
+  .footer-info h3 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.75rem;
+  }
+
+  .footer-links a,
+  .footer-info a {
+    display: block;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    padding: 0.25rem 0;
+    transition: color 0.2s ease;
+  }
+
+  .footer-links a:hover,
+  .footer-info a:hover {
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+
+  .footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-size: 0.8rem;
+  }
+
+  .powered-badge {
+    background: var(--color-badge-bg);
+    color: var(--color-badge-text);
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 768px) {
+    .header-inner {
+      padding: 0.75rem 1rem;
+    }
+
+    .main-nav {
+      gap: 1rem;
+    }
+
+    .main-nav a {
+      font-size: 0.8rem;
+    }
+
+    .footer-inner {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    .footer-bottom {
+      flex-direction: column;
+      gap: 0.75rem;
+      text-align: center;
+    }
+
+    .container {
+      padding: 0 1rem;
+    }
+  }
+
+  /* ===== Hamburger Button ===== */
+  .hamburger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .hamburger:hover {
+    border-color: var(--color-accent);
+  }
+
+  .hamburger-line {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: var(--color-text);
+    border-radius: 1px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+
+  .hamburger.is-active .hamburger-line:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .hamburger.is-active .hamburger-line:nth-child(2) {
+    opacity: 0;
+  }
+
+  .hamburger.is-active .hamburger-line:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
+  /* ===== Mobile Menu Overlay ===== */
+  .mobile-menu-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 98;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .mobile-menu-overlay.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ===== Mobile Menu ===== */
+  .mobile-menu {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99;
+    flex-direction: column;
+    background: var(--color-glass-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid var(--color-glass-border);
+    box-shadow: var(--shadow-glass);
+    padding: 5rem 1.5rem 1.5rem;
+    transform: translateY(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .mobile-menu a {
+    display: block;
+    color: var(--color-text-secondary);
+    font-size: 1rem;
+    font-weight: 500;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+    transition: color 0.2s ease;
+    text-decoration: none;
+  }
+
+  .mobile-menu a:last-child {
+    border-bottom: none;
+  }
+
+  .mobile-menu a:hover {
     color: var(--color-accent);
   }
 
-  .site-footer {
-    border-top: 1px solid var(--color-border);
-    padding: 2rem 0;
-    margin-top: 3rem;
-    text-align: center;
-    color: var(--color-text-secondary);
-    font-size: 0.85rem;
+  .mobile-menu.is-open {
+    transform: translateY(0);
   }
 
-  main {
-    min-height: 60vh;
+  @media (max-width: 480px) {
+    .main-nav {
+      display: none;
+    }
+
+    .hamburger {
+      display: flex;
+    }
+
+    .mobile-menu-overlay {
+      display: block;
+      pointer-events: none;
+    }
+
+    .mobile-menu {
+      display: flex;
+    }
   }
 </style>
