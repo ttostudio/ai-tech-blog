@@ -15,6 +15,7 @@ interface ArticleData {
   status: string;
   publishedAt: string | null;
   createdAt: string;
+  thumbnailUrl?: string | null;
 }
 
 const { slug } = Astro.params;
@@ -27,7 +28,21 @@ try {
   return Astro.redirect('/404');
 }
 
-const htmlContent = article ? await marked.parse(article.content) : '';
+/** HTMLサニタイズ: scriptタグ、イベントハンドラ、危険な属性を除去 */
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^>]*>.*?<\/iframe>/gi, '')
+    .replace(/<object\b[^>]*>.*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*\/?>/gi, '')
+    .replace(/<link\b[^>]*\/?>/gi, '')
+    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '')
+    .replace(/javascript\s*:/gi, 'blocked:')
+    .replace(/data\s*:\s*text\/html/gi, 'blocked:');
+}
+
+const rawHtml = article ? await marked.parse(article.content) : '';
+const htmlContent = sanitizeHtml(rawHtml);
 const dateStr = article?.publishedAt
   ? new Date(article.publishedAt).toLocaleDateString('ja-JP', {
       year: 'numeric',
@@ -35,12 +50,43 @@ const dateStr = article?.publishedAt
       day: 'numeric',
     })
   : '';
+
+const CATEGORY_GRADIENTS: Record<string, string> = {
+  'claude-code': 'linear-gradient(135deg, #667eea, #764ba2)',
+  'ai-hacks': 'linear-gradient(135deg, #f093fb, #f5576c)',
+  'ai-news': 'linear-gradient(135deg, #4facfe, #00f2fe)',
+  'tech': 'linear-gradient(135deg, #43e97b, #38f9d7)',
+};
+const fallbackGradient = article ? (CATEGORY_GRADIENTS[article.category] ?? CATEGORY_GRADIENTS['claude-code']) : '';
+const ogImage = article?.thumbnailUrl ?? '/og-default.png';
 ---
 
-<BaseLayout title={article?.title ?? '記事'} description={article?.excerpt}>
+<BaseLayout title={article?.title ?? '記事'} description={article?.excerpt} ogImage={ogImage}>
   {article && (
     <article class="article-detail">
       <header>
+        {article.thumbnailUrl ? (
+          <div class="eyecatch-wrapper">
+            <img
+              src={article.thumbnailUrl}
+              alt={article.title}
+              width="1024"
+              height="576"
+              class="eyecatch"
+              decoding="async"
+              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"
+            />
+            <div class="eyecatch-fallback" style={`background: ${fallbackGradient}`}>
+              <span class="eyecatch-fallback-label">{article.category}</span>
+            </div>
+          </div>
+        ) : (
+          <div class="eyecatch-wrapper">
+            <div class="eyecatch-fallback visible" style={`background: ${fallbackGradient}`}>
+              <span class="eyecatch-fallback-label">{article.category}</span>
+            </div>
+          </div>
+        )}
         <div class="meta">
           <a href={`/category/${article.category}`} class="category">{article.category}</a>
           <span class="author">著者: {article.author}</span>
@@ -88,6 +134,43 @@ const dateStr = article?.publishedAt
 </script>
 
 <style>
+  .eyecatch-wrapper {
+    margin-bottom: 1.5rem;
+    border-radius: var(--thumbnail-radius);
+    overflow: hidden;
+    aspect-ratio: var(--thumbnail-ratio);
+  }
+
+  .eyecatch {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: var(--thumbnail-radius);
+  }
+
+  .eyecatch-fallback {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--thumbnail-radius);
+  }
+
+  .eyecatch-fallback.visible {
+    display: flex;
+  }
+
+  .eyecatch-fallback-label {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
   .article-detail header {
     margin-bottom: 2rem;
   }

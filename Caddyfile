@@ -2,6 +2,10 @@
 	handle /api/* {
 		reverse_proxy backend:3000
 	}
+	handle /thumbnails/* {
+		root * /data
+		file_server
+	}
 	handle {
 		reverse_proxy frontend:4321
 	}

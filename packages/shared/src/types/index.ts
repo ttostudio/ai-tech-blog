@@ -2,6 +2,8 @@
 
 export type ArticleStatus = 'draft' | 'published' | 'archived';
 
+export type ThumbnailStatus = 'none' | 'generating' | 'completed' | 'failed';
+
 export interface Article {
   id: string;
   title: string;
@@ -15,6 +17,11 @@ export interface Article {
   publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  thumbnailUrl: string | null;
+  thumbnailPrompt: string | null;
+  thumbnailStatus: ThumbnailStatus;
+  thumbnailError: string | null;
+  thumbnailGeneratedAt: Date | null;
 }
 
 export interface SubmitArticleBody {

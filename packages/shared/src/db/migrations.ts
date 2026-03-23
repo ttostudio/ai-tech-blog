@@ -65,4 +65,17 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE articles ADD COLUMN IF NOT EXISTS author VARCHAR(200) NOT NULL DEFAULT 'anonymous';
     `,
   },
+  {
+    version: 5,
+    name: 'add_thumbnail_columns',
+    up: `
+      ALTER TABLE articles
+        ADD COLUMN IF NOT EXISTS thumbnail_url VARCHAR(500),
+        ADD COLUMN IF NOT EXISTS thumbnail_prompt TEXT,
+        ADD COLUMN IF NOT EXISTS thumbnail_status VARCHAR(20) NOT NULL DEFAULT 'none',
+        ADD COLUMN IF NOT EXISTS thumbnail_error TEXT,
+        ADD COLUMN IF NOT EXISTS thumbnail_generated_at TIMESTAMPTZ;
+      CREATE INDEX IF NOT EXISTS idx_articles_thumbnail_status ON articles (thumbnail_status);
+    `,
+  },
 ];
