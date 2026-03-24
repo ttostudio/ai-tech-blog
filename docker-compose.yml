@@ -34,7 +34,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: "3000"
     volumes:
-      - thumbnail_data:/data/thumbnails
+      - ./thumbnails:/data/thumbnails
     expose:
       - "3000"
     healthcheck:
@@ -78,7 +78,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-      - thumbnail_data:/data/thumbnails:ro
+      - ./thumbnails:/data/thumbnails:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3100/api/health || exit 1"]
       interval: 15s
@@ -89,4 +89,3 @@ volumes:
   pgdata:
   caddy_data:
   caddy_config:
-  thumbnail_data:
