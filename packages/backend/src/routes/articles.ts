@@ -139,17 +139,21 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     const excerpt = body.excerpt ?? body.content.replace(/[#*`[\]()>_~|]/g, '').slice(0, 200).trim();
     const tags = body.tags ?? [];
 
+    const status = body.status === 'draft' ? 'draft' : 'published';
+    const publishedAt = status === 'published' ? new Date().toISOString() : null;
+
     const [article] = await sql`
       INSERT INTO articles (title, slug, content, excerpt, category, tags, author, status, published_at)
-      VALUES (${body.title}, ${body.slug}, ${body.content}, ${excerpt}, ${body.category}, ${tags}, ${body.author}, 'published', NOW())
+      VALUES (${body.title}, ${body.slug}, ${body.content}, ${excerpt}, ${body.category}, ${tags}, ${body.author}, ${status}, ${publishedAt})
       RETURNING *
     `;
 
-    const baseUrl = process.env.PUBLIC_BASE_URL ?? 'http://localhost:3100';
-    const articleUrl = `${baseUrl}/articles/${article.slug}`;
-
-    // Fire-and-forget Slack notification
-    notifySlack(article.title, articleUrl).catch(() => {});
+    // Fire-and-forget Slack notification (only for published articles)
+    if (status === 'published') {
+      const baseUrl = process.env.PUBLIC_BASE_URL ?? 'http://localhost:3100';
+      const articleUrl = `${baseUrl}/articles/${article.slug}`;
+      notifySlack(article.title, articleUrl).catch(() => {});
+    }
 
     const response: ApiResponse<Article> = {
       data: {
@@ -174,6 +178,83 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     };
 
     return reply.code(201).send(response);
+  });
+
+  // Update article by slug (partial update)
+  app.patch('/articles/:slug', async (req, reply) => {
+    const { slug } = req.params as { slug: string };
+    const body = req.body as Record<string, unknown>;
+
+    if (!body || Object.keys(body).length === 0) {
+      return reply.code(400).send({
+        error: { code: 'VALIDATION_ERROR', message: 'Request body must contain at least one field to update' },
+      });
+    }
+
+    // Check article exists
+    const existing = await sql`SELECT id FROM articles WHERE slug = ${slug}`;
+    if (existing.length === 0) {
+      return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Article not found' } });
+    }
+
+    // Allow only known fields
+    const allowedFields = ['title', 'content', 'excerpt', 'category', 'tags', 'status', 'published_at'] as const;
+    const updates: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updates[field] = body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return reply.code(400).send({
+        error: { code: 'VALIDATION_ERROR', message: 'No valid fields to update' },
+      });
+    }
+
+    // If publishing, set published_at automatically
+    if (updates.status === 'published' && !updates.published_at) {
+      updates.published_at = new Date().toISOString();
+    }
+
+    // Use COALESCE to only update provided fields
+    const [article] = await sql`
+      UPDATE articles
+      SET title = COALESCE(${(updates.title as string) ?? null}, title),
+          content = COALESCE(${(updates.content as string) ?? null}, content),
+          excerpt = COALESCE(${(updates.excerpt as string) ?? null}, excerpt),
+          category = COALESCE(${(updates.category as string) ?? null}, category),
+          tags = COALESCE(${(updates.tags as string[]) ?? null}, tags),
+          status = COALESCE(${(updates.status as string) ?? null}, status),
+          published_at = COALESCE(${(updates.published_at as string) ?? null}, published_at),
+          updated_at = NOW()
+      WHERE slug = ${slug}
+      RETURNING *
+    `;
+
+    const response: ApiResponse<Article> = {
+      data: {
+        id: article.id,
+        title: article.title,
+        slug: article.slug,
+        content: article.content,
+        excerpt: article.excerpt,
+        category: article.category,
+        tags: article.tags,
+        author: article.author,
+        status: article.status,
+        publishedAt: article.published_at,
+        createdAt: article.created_at,
+        updatedAt: article.updated_at,
+        thumbnailUrl: article.thumbnail_url ?? null,
+        thumbnailPrompt: article.thumbnail_prompt ?? null,
+        thumbnailStatus: article.thumbnail_status ?? 'none',
+        thumbnailError: article.thumbnail_error ?? null,
+        thumbnailGeneratedAt: article.thumbnail_generated_at ?? null,
+      },
+    };
+
+    return reply.send(response);
   });
 
   // Delete article by slug

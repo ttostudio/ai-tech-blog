@@ -32,6 +32,7 @@ export interface SubmitArticleBody {
   author: string;
   excerpt?: string;
   tags?: string[];
+  status?: 'draft' | 'published';
 }
 
 // --- API Responses ---
