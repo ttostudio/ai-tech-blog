@@ -8,10 +8,10 @@ RUN npm ci --workspace=packages/frontend --include-workspace-root
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/frontend/node_modules ./packages/frontend/node_modules
 COPY --from=deps /app/package.json ./
 COPY packages/frontend ./packages/frontend
-WORKDIR /app/packages/frontend
-RUN npm run build
+RUN npm run build --workspace=packages/frontend
 
 FROM base AS runtime
 ENV NODE_ENV=production

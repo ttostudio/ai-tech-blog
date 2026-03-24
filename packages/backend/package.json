@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@ai-tech-blog/shared": "*",
-    "fastify": "5.2.1",
     "@fastify/cors": "11.0.1",
+    "fastify": "^5.8.4",
     "postgres": "3.4.5"
   },
   "devDependencies": {
