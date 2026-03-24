@@ -31,6 +31,7 @@ services:
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3100}
       COMFYUI_API_URL: ${COMFYUI_API_URL:-http://host.docker.internal:3300}
+      API_SECRET_KEY: ${API_SECRET_KEY:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: "3000"
     volumes:
