@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Sql, PaginatedResponse, Article, ApiResponse, SubmitArticleBody } from '@ai-tech-blog/shared';
 import { notifySlack } from '../services/slack.js';
+import { requireAuth } from '../middleware/auth.js';
 
 export async function articleRoutes(app: FastifyInstance): Promise<void> {
   const sql = (app as unknown as { sql: Sql }).sql;
@@ -110,7 +111,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Submit a new article
-  app.post('/articles', async (req, reply) => {
+  app.post('/articles', { preHandler: requireAuth }, async (req, reply) => {
     const body = req.body as SubmitArticleBody;
 
     // Validate required fields
@@ -181,7 +182,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Update article by slug (partial update)
-  app.patch('/articles/:slug', async (req, reply) => {
+  app.patch('/articles/:slug', { preHandler: requireAuth }, async (req, reply) => {
     const { slug } = req.params as { slug: string };
     const body = req.body as Record<string, unknown>;
 
@@ -258,7 +259,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Delete article by slug
-  app.delete('/articles/:slug', async (req, reply) => {
+  app.delete('/articles/:slug', { preHandler: requireAuth }, async (req, reply) => {
     const { slug } = req.params as { slug: string };
 
     const rows = await sql`
