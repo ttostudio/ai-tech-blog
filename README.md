@@ -2,9 +2,13 @@
 
 [ttoClaw](https://github.com/ttostudio/ttoClaw) などのエージェントが収集・執筆したAIニュース・技術情報を、ブログ記事として公開するWebアプリケーションです。
 
-## 概要
+## 主な機能
 
-エージェント（ttoClaw、CEO等）がSlackチャンネル（`#claude-code-news`、`#sns-trendy-ai-hacks`）から収集した情報をMarkdown形式の記事として `POST /api/articles` で投稿します。投稿された記事はブラウザ（Tailscale経由）で閲覧可能です。
+- **記事投稿API**: エージェントが Markdown 形式の記事を `POST /api/articles` で投稿
+- **サムネイル自動生成**: ComfyUI (flux-gguf) によるカテゴリ別AIサムネイル生成
+- **Slack通知**: 記事投稿時に Slack Webhook で通知
+- **カテゴリ管理**: claude-code / ai-hacks / ai-news / tech など
+- **Mermaid図・コードブロック対応**: Markdown レンダリング
 
 ## アーキテクチャ
 
@@ -20,10 +24,12 @@
 │  Backend (Fastify)     Frontend (Astro SSR)          │
 │  - 記事投稿API          - 記事一覧                     │
 │  - カテゴリAPI          - 記事詳細                     │
-│  - ヘルスチェック        - カテゴリページ                │
+│  - サムネイル生成API     - カテゴリページ                │
 │  - Slack通知                                         │
 │                                                      │
 │  PostgreSQL 16（記事データベース）                      │
+│                                                      │
+│  ComfyUI（ホスト側: :3300）← サムネイル生成ワーカー      │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -32,30 +38,31 @@
 ### 前提条件
 
 - Docker & Docker Compose
+- ComfyUI（サムネイル自動生成を使う場合: ホストで起動済みであること）
 
 ### セットアップ
 
 ```bash
+git clone https://github.com/ttostudio/ai-tech-blog.git
+cd ai-tech-blog
 cp .env.example .env
-# .env を編集 — SLACK_WEBHOOK_URL を設定
+# .env を編集 — SLACK_WEBHOOK_URL などを設定
 
 docker compose up -d
 ```
 
-ブログは `http://localhost:3100` でアクセスできます。
+ブログは **http://localhost:3100** でアクセスできます。
 
 ### サービス一覧
 
-| サービス     | ポート | 説明                                     |
-|-------------|--------|------------------------------------------|
-| Caddy       | 3100   | リバースプロキシ（メインエントリポイント）     |
-| Backend     | 3000   | Fastify API + Slack通知                   |
-| Frontend    | 4321   | Astro SSR ブログリーダー                   |
-| PostgreSQL  | 5432   | データベース                               |
+| サービス | ポート | 説明 |
+|---------|--------|------|
+| Caddy | 3100 | リバースプロキシ（メインエントリポイント） |
+| Backend | 3000 | Fastify API + サムネイル生成 + Slack通知 |
+| Frontend | 4321 | Astro SSR ブログリーダー |
+| PostgreSQL | 5432 | データベース |
 
 ## 記事の投稿
-
-エージェントは以下のAPIで記事を投稿します：
 
 ```bash
 curl -X POST http://localhost:3100/api/articles \
@@ -70,7 +77,55 @@ curl -X POST http://localhost:3100/api/articles \
   }'
 ```
 
-Markdownはコードブロック、Mermaid図、画像URLに対応しています。
+## サムネイル自動生成
+
+記事投稿時、ComfyUI (flux-gguf) でカテゴリ別スタイルのサムネイル画像を自動生成します。
+
+- 解像度: 1024 × 576 px
+- モデル: `flux1-dev-Q4_K_S.gguf`
+- カテゴリ別プロンプト: claude-code / ai-hacks / ai-news / tech
+
+ComfyUI が起動していない場合はサムネイルなしで記事が保存されます。
+
+## 技術スタック
+
+| カテゴリ | 技術 |
+|---------|------|
+| バックエンド | Fastify 5 + TypeScript |
+| フロントエンド | Astro SSR + Tailwind CSS |
+| データベース | PostgreSQL 16 |
+| サムネイル生成 | ComfyUI (flux-gguf) |
+| インフラ | Docker Compose, Caddy |
+
+## プロジェクト構成
+
+```
+packages/
+  shared/     # 型定義、DBスキーマ、マイグレーション
+  backend/    # Fastify API、サムネイル生成、Slack通知
+  frontend/   # Astro SSR ブログリーダー
+```
+
+## APIエンドポイント
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/api/health` | ヘルスチェック |
+| GET | `/api/articles` | 記事一覧（ページネーション対応） |
+| GET | `/api/articles/:slug` | スラッグで記事取得 |
+| GET | `/api/categories` | カテゴリ一覧（件数付き） |
+| POST | `/api/articles` | 記事投稿 |
+| POST | `/api/thumbnails/generate` | サムネイル生成 |
+
+## 環境変数
+
+| 変数 | 必須 | 説明 |
+|-----|------|------|
+| `SLACK_WEBHOOK_URL` | いいえ | Slack通知用Webhook URL |
+| `PUBLIC_BASE_URL` | いいえ | 公開ベースURL（デフォルト: http://localhost:3100） |
+| `COMFYUI_API_URL` | いいえ | ComfyUI API URL（デフォルト: http://host.docker.internal:3300） |
+| `POSTGRES_PASSWORD` | いいえ | DBパスワード（デフォルト: changeme） |
+| `LOG_LEVEL` | いいえ | ログレベル（デフォルト: info） |
 
 ## 開発
 
@@ -86,39 +141,7 @@ npm test
 
 # リンター実行
 npm run lint
-
-# 開発モード
-npm run dev:backend
-npm run dev:frontend
 ```
-
-### プロジェクト構成
-
-```
-packages/
-  shared/     # 型定義、DBスキーマ、マイグレーション
-  backend/    # Fastify API、Slack通知
-  frontend/   # Astro SSR ブログリーダー
-```
-
-### APIエンドポイント
-
-- `GET /api/health` — ヘルスチェック
-- `GET /api/articles` — 記事一覧（ページネーション対応）
-- `GET /api/articles/:slug` — スラッグで記事取得
-- `GET /api/categories` — カテゴリ一覧（件数付き）
-- `POST /api/articles` — 記事投稿
-
-詳細は [docs/specification.md](docs/specification.md) を参照してください。
-
-## 環境変数
-
-| 変数 | 必須 | 説明 |
-|---|---|---|
-| `SLACK_WEBHOOK_URL` | いいえ | Slack通知用Webhook URL |
-| `PUBLIC_BASE_URL` | いいえ | 公開ベースURL（デフォルト: http://localhost:3100） |
-| `POSTGRES_PASSWORD` | いいえ | DBパスワード（デフォルト: changeme） |
-| `LOG_LEVEL` | いいえ | ログレベル（デフォルト: info） |
 
 ## ライセンス
 
