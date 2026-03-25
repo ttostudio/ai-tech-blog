@@ -4,7 +4,9 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json package-lock.json ./
 COPY packages/frontend/package.json ./packages/frontend/package.json
-RUN npm ci --workspace=packages/frontend --include-workspace-root
+COPY packages/shared/package.json ./packages/shared/package.json
+COPY packages/backend/package.json ./packages/backend/package.json
+RUN npm ci
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
@@ -18,8 +20,9 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=4321
 COPY --from=build /app/packages/frontend/dist ./dist
-# Hoisted node_modules at root
+# Merge both root and workspace node_modules (workspace deps take precedence)
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/frontend/node_modules ./node_modules
 COPY --from=build /app/packages/frontend/package.json ./
 
 EXPOSE 4321
