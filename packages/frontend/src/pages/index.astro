@@ -2,7 +2,6 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import Pagination from '../components/Pagination.astro';
-import CategoryFilter from '../components/CategoryFilter.astro';
 import { fetchApi } from '../lib/api';
 
 interface ArticleSummary {
@@ -15,6 +14,7 @@ interface ArticleSummary {
   author: string;
   publishedAt: string | null;
   thumbnailUrl?: string | null;
+  contentLength?: number | null;
 }
 
 interface ApiResponse {
@@ -32,10 +32,11 @@ interface CategoriesResponse {
   data: Category[];
 }
 
-// SSR: クエリパラメータからページとカテゴリを取得（NaNガード）
+// SSR: クエリパラメータからページ・カテゴリ・検索ワードを取得（NaNガード）
 const pageParam = Astro.url.searchParams.get('page') ?? '1';
 const page = Math.max(1, parseInt(pageParam) || 1);
 const selectedCategory = Astro.url.searchParams.get('category') ?? undefined;
+const searchQuery = Astro.url.searchParams.get('q') ?? '';
 
 const LIMIT = 12;
 
@@ -52,6 +53,7 @@ try {
     limit: String(LIMIT),
   });
   if (selectedCategory) params.set('category', selectedCategory);
+  if (searchQuery) params.set('q', searchQuery);
 
   const res = await fetchApi<ApiResponse>(`/articles?${params.toString()}`);
   articles = res.data;
@@ -72,9 +74,10 @@ try {
 const featuredArticle = articles[0] ?? null;
 const restArticles = articles.slice(1);
 
-// ページネーション用の追加クエリパラメータ（category がある場合は引き継ぐ）
+// ページネーション用の追加クエリパラメータ
 const paginationParams: Record<string, string> = {};
 if (selectedCategory) paginationParams.category = selectedCategory;
+if (searchQuery) paginationParams.q = searchQuery;
 ---
 
 <BaseLayout
@@ -112,19 +115,50 @@ if (selectedCategory) paginationParams.category = selectedCategory;
     </div>
   </section>
 
-  {/* エラー状態 (F-07) + スケルトン表示 (F-06) */}
+  {/* エラー状態 (F-07) */}
   {articlesError && (
-    <>
-      <div class="error-state">
-        <span class="error-icon">⚠</span>
-        <p>{articlesError}</p>
-      </div>
-    </>
+    <div class="error-state">
+      <span class="error-icon">⚠</span>
+      <p>{articlesError}</p>
+    </div>
   )}
 
-  {/* カテゴリフィルタ (F-02) — カテゴリ取得成功時のみ表示 */}
-  {!articlesError && categories.length > 0 && (
-    <CategoryFilter categories={categories} selectedCategory={selectedCategory} />
+  {/* 検索バー + カテゴリタブ */}
+  {!articlesError && (
+    <div class="search-filter-section">
+      <div class="search-bar">
+        <span class="search-icon" aria-hidden="true">&#x1F50D;</span>
+        <input
+          id="search-input"
+          type="search"
+          placeholder="記事を検索..."
+          value={searchQuery}
+          aria-label="記事を検索"
+          autocomplete="off"
+        />
+      </div>
+      {categories.length > 0 && (
+        <div class="category-tabs" role="tablist" aria-label="カテゴリフィルタ">
+          <button
+            class:list={['tab-btn', { active: !selectedCategory }]}
+            data-category-tab=""
+            role="tab"
+            aria-selected={!selectedCategory}
+          >すべて</button>
+          {categories.map((cat) => (
+            <button
+              class:list={['tab-btn', { active: selectedCategory === cat.name }]}
+              data-category-tab={cat.name}
+              role="tab"
+              aria-selected={selectedCategory === cat.name}
+            >
+              {cat.displayName}
+              <span class="tab-count">{cat.articleCount}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )}
 
   {!articlesError && articles.length === 0 && (
@@ -149,6 +183,7 @@ if (selectedCategory) paginationParams.category = selectedCategory;
           author={featuredArticle.author}
           publishedAt={featuredArticle.publishedAt}
           thumbnailUrl={featuredArticle.thumbnailUrl}
+          contentLength={featuredArticle.contentLength}
           featured={true}
         />
       </div>
@@ -170,6 +205,7 @@ if (selectedCategory) paginationParams.category = selectedCategory;
               author={article.author}
               publishedAt={article.publishedAt}
               thumbnailUrl={article.thumbnailUrl}
+              contentLength={article.contentLength}
             />
           </div>
         ))}
@@ -187,6 +223,167 @@ if (selectedCategory) paginationParams.category = selectedCategory;
     />
   )}
 </BaseLayout>
+
+<script>
+  (() => {
+    const LIMIT = 12;
+    let currentCategory = new URLSearchParams(location.search).get('category') || '';
+    let currentQ = new URLSearchParams(location.search).get('q') || '';
+    let debounceTimer: ReturnType<typeof setTimeout>;
+
+    function escHtml(str: string): string {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDate(str: string | null): string {
+      if (!str) return '';
+      return new Date(str).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    interface ArticleItem {
+      slug: string;
+      title: string;
+      excerpt: string;
+      category: string;
+      tags: string[];
+      author: string;
+      publishedAt: string | null;
+      thumbnailUrl?: string | null;
+      contentLength?: number | null;
+    }
+
+    const CATEGORY_GRADIENTS: Record<string, string> = {
+      'claude-code': 'linear-gradient(135deg, #22d3ee 0%, #818cf8 100%)',
+      'ai-hacks': 'linear-gradient(135deg, #34d399 0%, #22d3ee 100%)',
+      'ai-news': 'linear-gradient(135deg, #f472b6 0%, #818cf8 100%)',
+      'tech': 'linear-gradient(135deg, #fb923c 0%, #f472b6 100%)',
+    };
+
+    const CATEGORY_LABELS: Record<string, string> = {
+      'claude-code': 'Claude Code',
+      'ai-hacks': 'AI Hacks',
+      'ai-news': 'AI News',
+      'tech': 'Tech',
+    };
+
+    function renderCard(article: ArticleItem, index: number): string {
+      const date = formatDate(article.publishedAt);
+      const rt = article.contentLength ? Math.ceil(article.contentLength / 400) : null;
+      const label = escHtml(CATEGORY_LABELS[article.category] || article.category);
+      const gradient = CATEGORY_GRADIENTS[article.category] || 'linear-gradient(135deg, #22d3ee 0%, #818cf8 100%)';
+      const tagsHtml = article.tags
+        .slice(0, 3)
+        .map((t) => `<span class="tag">#${escHtml(t)}</span>`)
+        .join('');
+      const cover = article.thumbnailUrl
+        ? `<div class="card-cover card-cover--thumbnail"><div class="thumbnail-skeleton" aria-hidden="true"></div><img src="${escHtml(article.thumbnailUrl)}" alt="${escHtml(article.title)}" width="1024" height="576" loading="lazy" decoding="async" class="thumbnail" onerror="this.style.display='none'"/></div>`
+        : `<div class="card-cover" style="background:${gradient}"><span class="cover-label">${label}</span></div>`;
+
+      return `<div style="--i:${index}">
+        <article class="article-card" style="opacity:0;animation:fade-slide-up 0.5s ease forwards;animation-delay:calc(${index}*0.1s)">
+          <a href="/articles/${escHtml(article.slug)}">
+            ${cover}
+            <div class="card-content">
+              <div class="card-meta">
+                <span class="category-badge">${escHtml(article.category)}</span>
+                ${date ? `<time>${escHtml(date)}</time>` : ''}
+                ${rt ? `<span class="reading-time">約${rt}分</span>` : ''}
+              </div>
+              <h2 class="card-title">${escHtml(article.title)}</h2>
+              <p class="card-excerpt">${escHtml(article.excerpt)}</p>
+              <div class="card-footer">
+                <span class="author-info">
+                  <span class="author-avatar">${escHtml(article.author.charAt(0).toUpperCase())}</span>
+                  <span class="author-name">${escHtml(article.author)}</span>
+                </span>
+                ${tagsHtml ? `<div class="tags">${tagsHtml}</div>` : ''}
+              </div>
+            </div>
+          </a>
+        </article>
+      </div>`;
+    }
+
+    async function fetchAndRender(): Promise<void> {
+      const params = new URLSearchParams({ status: 'published', limit: String(LIMIT) });
+      if (currentCategory) params.set('category', currentCategory);
+      if (currentQ) params.set('q', currentQ);
+
+      const featuredSection = document.querySelector<HTMLElement>('.featured-section');
+      const articlesSection = document.querySelector<HTMLElement>('.articles-section');
+      const emptyState = document.querySelector<HTMLElement>('.empty-state');
+
+      try {
+        const res = await fetch(`/api/articles?${params.toString()}`);
+        const json = await res.json() as { data: ArticleItem[] };
+        const items = json.data || [];
+
+        // URL を更新（履歴に積む）
+        const url = new URL(location.href);
+        url.searchParams.set('page', '1');
+        if (currentCategory) url.searchParams.set('category', currentCategory);
+        else url.searchParams.delete('category');
+        if (currentQ) url.searchParams.set('q', currentQ);
+        else url.searchParams.delete('q');
+        history.pushState({}, '', url.toString());
+
+        if (items.length === 0) {
+          if (featuredSection) featuredSection.innerHTML = '';
+          if (articlesSection) articlesSection.innerHTML = '';
+          if (emptyState) emptyState.style.display = '';
+          return;
+        }
+        if (emptyState) emptyState.style.display = 'none';
+
+        const [featured, ...rest] = items;
+        if (featuredSection) {
+          featuredSection.innerHTML = `<h2 class="section-title">最新の記事</h2>${renderCard(featured, 0)}`;
+        }
+        if (articlesSection) {
+          if (rest.length > 0) {
+            const cardsHtml = rest.map((a, i) => renderCard(a, i + 1)).join('');
+            articlesSection.innerHTML = `<h2 class="section-title">記事一覧</h2><div class="article-grid">${cardsHtml}</div>`;
+          } else {
+            articlesSection.innerHTML = '';
+          }
+        }
+      } catch (e) {
+        console.error('記事取得エラー:', e);
+      }
+    }
+
+    // 検索入力（デバウンス 400ms）
+    const searchInput = document.getElementById('search-input') as HTMLInputElement | null;
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          currentQ = (e.target as HTMLInputElement).value.trim();
+          fetchAndRender();
+        }, 400);
+      });
+    }
+
+    // カテゴリタブ
+    document.querySelectorAll<HTMLButtonElement>('[data-category-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        currentCategory = btn.dataset.categoryTab ?? '';
+        document.querySelectorAll('[data-category-tab]').forEach((b) => {
+          b.classList.remove('active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        fetchAndRender();
+      });
+    });
+  })();
+</script>
 
 <style>
   @keyframes gradient-shift {
@@ -239,6 +436,88 @@ if (selectedCategory) paginationParams.category = selectedCategory;
     font-size: 0.8rem;
     font-weight: 600;
     border: 1px solid rgba(34, 211, 238, 0.15);
+  }
+
+  /* 検索バー + カテゴリタブ */
+  .search-filter-section {
+    margin-bottom: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .search-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 0.9rem;
+    font-size: 0.95rem;
+    pointer-events: none;
+    color: var(--color-text-secondary);
+  }
+
+  #search-input {
+    width: 100%;
+    padding: 0.65rem 1rem 0.65rem 2.5rem;
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  }
+
+  #search-input:focus {
+    border-color: rgba(34, 211, 238, 0.4);
+    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+  }
+
+  #search-input::placeholder {
+    color: var(--color-text-secondary);
+    opacity: 0.6;
+  }
+
+  .category-tabs {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-card-border);
+    background: var(--color-card-bg);
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--transition-base), color var(--transition-base), border-color var(--transition-base);
+  }
+
+  .tab-btn:hover {
+    border-color: rgba(34, 211, 238, 0.3);
+    color: var(--color-text);
+  }
+
+  .tab-btn.active {
+    background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+    border-color: transparent;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .tab-count {
+    font-size: 0.75rem;
+    opacity: 0.75;
   }
 
   /* Sections */

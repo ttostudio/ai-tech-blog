@@ -8,41 +8,33 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
 
   // List articles
   app.get('/articles', async (req, reply) => {
-    const { page = '1', limit = '20', status = 'published', category } = req.query as Record<string, string>;
+    const { page = '1', limit = '20', status = 'published', category, q } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
     const offset = (pageNum - 1) * limitNum;
 
-    let countResult;
-    let rows;
+    const categoryCondition = category ? sql`AND category = ${category}` : sql``;
+    const searchCondition = q
+      ? sql`AND (title ILIKE ${'%' + q + '%'} OR content ILIKE ${'%' + q + '%'})`
+      : sql``;
 
-    if (category) {
-      countResult = await sql`
-        SELECT COUNT(*)::int as total FROM articles WHERE status = ${status} AND category = ${category}
-      `;
-      rows = await sql`
-        SELECT id, title, slug, excerpt, category, tags, author, status, published_at, created_at, thumbnail_url, thumbnail_prompt, thumbnail_status, thumbnail_error, thumbnail_generated_at
-        FROM articles
-        WHERE status = ${status} AND category = ${category}
-        ORDER BY published_at DESC NULLS LAST, created_at DESC
-        LIMIT ${limitNum} OFFSET ${offset}
-      `;
-    } else {
-      countResult = await sql`
-        SELECT COUNT(*)::int as total FROM articles WHERE status = ${status}
-      `;
-      rows = await sql`
-        SELECT id, title, slug, excerpt, category, tags, author, status, published_at, created_at, thumbnail_url, thumbnail_prompt, thumbnail_status, thumbnail_error, thumbnail_generated_at
-        FROM articles
-        WHERE status = ${status}
-        ORDER BY published_at DESC NULLS LAST, created_at DESC
-        LIMIT ${limitNum} OFFSET ${offset}
-      `;
-    }
+    const countResult = await sql`
+      SELECT COUNT(*)::int as total FROM articles
+      WHERE status = ${status} ${categoryCondition} ${searchCondition}
+    `;
+    const rows = await sql`
+      SELECT id, title, slug, excerpt, category, tags, author, status, published_at, created_at,
+             thumbnail_url, thumbnail_prompt, thumbnail_status, thumbnail_error, thumbnail_generated_at,
+             LENGTH(content)::int as content_length
+      FROM articles
+      WHERE status = ${status} ${categoryCondition} ${searchCondition}
+      ORDER BY published_at DESC NULLS LAST, created_at DESC
+      LIMIT ${limitNum} OFFSET ${offset}
+    `;
 
     const total = countResult[0].total;
 
-    const response: PaginatedResponse<Omit<Article, 'content' | 'updatedAt'>> = {
+    const response = {
       data: rows.map((r) => ({
         id: r.id,
         title: r.title,
@@ -59,6 +51,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         thumbnailStatus: r.thumbnail_status ?? 'none',
         thumbnailError: r.thumbnail_error ?? null,
         thumbnailGeneratedAt: r.thumbnail_generated_at ?? null,
+        contentLength: (r.content_length as number) ?? null,
       })),
       pagination: {
         page: pageNum,
