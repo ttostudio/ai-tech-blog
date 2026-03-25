@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://ttomac-mini:3100/sitemap.xml
