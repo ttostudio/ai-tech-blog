@@ -83,6 +83,21 @@ if (selectedCategory) paginationParams.category = selectedCategory;
   ogTitle="AI Tech Blog — ttoStudio"
   ogDescription="AIニュースと技術情報を自動的にお届けするttoStudioのブログ"
 >
+  <script
+    slot="head"
+    type="application/ld+json"
+    set:html={JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'AI Tech Blog',
+      url: `${Astro.url.origin}/`,
+      description: 'AIニュースと技術情報を自動的にお届けするttoStudioのブログ',
+      publisher: {
+        '@type': 'Organization',
+        name: 'ttoStudio',
+      },
+    }).replace(/<\//g, '<\\/')}
+  />
   <section class="hero">
     <div class="hero-content">
       <h1 class="hero-title">
