@@ -52,6 +52,7 @@ const ogImage = ogImageProp ?? `${Astro.url.origin}/og-default.svg`;
     <meta name="twitter:image" content={ogImage} />
     <link rel="canonical" href={resolvedCanonical} />
     <slot name="head" />
+    <script defer src="http://ttomac-mini:4020/track.js" data-site="blog"></script>
   </head>
   <body>
     <header class="site-header">
