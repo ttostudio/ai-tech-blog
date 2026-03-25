@@ -9,9 +9,10 @@ interface Props {
   publishedAt: string | null;
   thumbnailUrl?: string | null;
   featured?: boolean;
+  contentLength?: number | null;
 }
 
-const { title, slug, excerpt, category, tags, author, publishedAt, thumbnailUrl, featured = false } = Astro.props;
+const { title, slug, excerpt, category, tags, author, publishedAt, thumbnailUrl, featured = false, contentLength } = Astro.props;
 
 const dateStr = publishedAt
   ? new Date(publishedAt).toLocaleDateString('ja-JP', {
@@ -20,6 +21,8 @@ const dateStr = publishedAt
       day: 'numeric',
     })
   : '';
+
+const readingTime = contentLength ? Math.ceil(contentLength / 400) : null;
 
 // カテゴリ別グラデーション
 const CATEGORY_GRADIENTS: Record<string, string> = {
@@ -70,6 +73,7 @@ const categoryLabel = CATEGORY_LABELS[category] ?? category;
       <div class="card-meta">
         <span class="category-badge">{category}</span>
         {dateStr && <time>{dateStr}</time>}
+        {readingTime && <span class="reading-time">約{readingTime}分</span>}
       </div>
       <h2 class="card-title">{title}</h2>
       <p class="card-excerpt">{excerpt}</p>
@@ -200,6 +204,12 @@ const categoryLabel = CATEGORY_LABELS[category] ?? category;
     font-weight: 600;
     font-size: var(--text-xs);
     letter-spacing: 0.02em;
+  }
+
+  .reading-time {
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+    opacity: 0.8;
   }
 
   .card-title {
