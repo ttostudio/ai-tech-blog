@@ -17,6 +17,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   backend:
     build:
@@ -44,6 +48,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   frontend:
     build:
@@ -64,6 +72,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
 
   caddy:
     image: caddy:2-alpine
@@ -85,6 +97,10 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128m
 
 volumes:
   pgdata:
