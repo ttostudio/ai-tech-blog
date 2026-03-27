@@ -78,4 +78,14 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_articles_thumbnail_status ON articles (thumbnail_status);
     `,
   },
+  {
+    version: 6,
+    name: 'add_tags_gin_index_for_related',
+    up: `
+      CREATE INDEX IF NOT EXISTS idx_articles_tags_gin
+        ON articles USING GIN (tags);
+      CREATE INDEX IF NOT EXISTS idx_articles_category_status
+        ON articles (category, status);
+    `,
+  },
 ];

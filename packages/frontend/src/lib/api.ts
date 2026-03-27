@@ -8,3 +8,20 @@ export async function fetchApi<T>(path: string): Promise<T> {
   }
   return res.json() as Promise<T>;
 }
+
+export interface RelatedArticle {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  category: string;
+  tags: string[];
+  author: string;
+  publishedAt: string | null;
+  thumbnailUrl?: string | null;
+}
+
+export async function fetchRelatedArticles(slug: string): Promise<RelatedArticle[]> {
+  const res = await fetchApi<{ data: RelatedArticle[] }>(`/articles/${encodeURIComponent(slug)}/related`);
+  return res.data;
+}

@@ -251,6 +251,70 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(response);
   });
 
+  // Get related articles by slug
+  app.get('/articles/:slug/related', async (req, reply) => {
+    const { slug } = req.params as { slug: string };
+
+    // Validate slug format
+    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) && !/^[a-z0-9]$/.test(slug)) {
+      return reply.code(400).send({
+        error: { code: 'VALIDATION_ERROR', message: 'Invalid slug format' },
+      });
+    }
+
+    // Get the source article's category and tags
+    const source = await sql`
+      SELECT category, tags FROM articles WHERE slug = ${slug}
+    `;
+
+    if (source.length === 0) {
+      return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Article not found' } });
+    }
+
+    const { category, tags } = source[0];
+
+    // Calculate relevance score and return top 3 related articles
+    const rows = await sql`
+      SELECT
+        id, title, slug, excerpt, category, tags, author,
+        status, published_at, created_at,
+        thumbnail_url, thumbnail_status,
+        (
+          CASE WHEN category = ${category} THEN 1.0 ELSE 0.0 END
+          + (
+            SELECT COUNT(*)::float * 0.5
+            FROM unnest(tags) t
+            WHERE t = ANY(${tags}::text[])
+          )
+        ) AS relevance_score
+      FROM articles
+      WHERE
+        slug != ${slug}
+        AND status = 'published'
+      ORDER BY
+        relevance_score DESC,
+        published_at DESC NULLS LAST
+      LIMIT 3
+    `;
+
+    return reply.send({
+      data: rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        slug: r.slug,
+        excerpt: r.excerpt,
+        category: r.category,
+        tags: r.tags,
+        author: r.author,
+        status: r.status,
+        publishedAt: r.published_at,
+        createdAt: r.created_at,
+        thumbnailUrl: r.thumbnail_url ?? null,
+        thumbnailStatus: r.thumbnail_status ?? 'none',
+      })),
+    });
+  });
+
   // Delete article by slug
   app.delete('/articles/:slug', { preHandler: requireAuth }, async (req, reply) => {
     const { slug } = req.params as { slug: string };
