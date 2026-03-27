@@ -1,0 +1,94 @@
+---
+import ArticleCard from './ArticleCard.astro';
+import { fetchRelatedArticles } from '../lib/api';
+
+interface Props {
+  slug: string;
+}
+
+const { slug } = Astro.props;
+
+let relatedArticles: Awaited<ReturnType<typeof fetchRelatedArticles>> = [];
+
+try {
+  relatedArticles = await fetchRelatedArticles(slug);
+} catch {
+  // 関連記事取得失敗は無視（セクション非表示）
+}
+---
+
+{relatedArticles.length > 0 && (
+  <section class="related-articles-section">
+    <h2 class="related-articles-heading">関連記事</h2>
+    <div class="related-articles-grid">
+      {relatedArticles.map((article, index) => (
+        <div class="article-card-wrapper" style={`--i: ${index}`}>
+          <ArticleCard
+            title={article.title}
+            slug={article.slug}
+            excerpt={article.excerpt}
+            category={article.category}
+            tags={article.tags}
+            author={article.author}
+            publishedAt={article.publishedAt}
+            thumbnailUrl={article.thumbnailUrl}
+            featured={false}
+            contentLength={null}
+          />
+        </div>
+      ))}
+    </div>
+  </section>
+)}
+
+<style>
+  .related-articles-section {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .related-articles-heading {
+    font-size: var(--text-2xl);
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+    background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .related-articles-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-5);
+  }
+
+  .article-card-wrapper {
+    min-width: 0;
+  }
+
+  @media (max-width: 1199px) {
+    .related-articles-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-4);
+    }
+  }
+
+  @media (max-width: 767px) {
+    .related-articles-section {
+      margin-top: 2rem;
+    }
+
+    .related-articles-heading {
+      font-size: var(--text-lg);
+    }
+
+    .related-articles-grid {
+      grid-template-columns: 1fr;
+      gap: var(--space-4);
+    }
+  }
+</style>

@@ -7,7 +7,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@ai-tech-blog/shared": "*",
@@ -16,6 +18,7 @@
     "postgres": "3.4.5"
   },
   "devDependencies": {
-    "tsx": "4.19.3"
+    "tsx": "4.19.3",
+    "vitest": "^3.0.9"
   }
 }

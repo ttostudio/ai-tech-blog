@@ -31,7 +31,7 @@ function buildWorkflow(prompt: string): Record<string, unknown> {
       class_type: 'DualCLIPLoader',
       inputs: {
         clip_name1: 'clip_l.safetensors',
-        clip_name2: 't5-v1_1-xxl-encoder-Q8_0.gguf',
+        clip_name2: 't5xxl_fp8_e4m3fn.safetensors',
         type: 'flux',
       },
     },
@@ -45,7 +45,7 @@ function buildWorkflow(prompt: string): Record<string, unknown> {
     '3': {
       class_type: 'UnetLoaderGGUF',
       inputs: {
-        unet_name: 'flux1-dev-Q4_K_S.gguf',
+        unet_name: 'flux1-schnell-Q4_K_S.gguf',
       },
     },
     '4': {
