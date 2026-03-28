@@ -193,6 +193,126 @@ function execClaudePrompt(promptText: string): Promise<string> {
   });
 }
 
+// --- 品質スコアリング ---
+interface ScoreDetail {
+  criterion: string;
+  score: number;
+  max: number;
+  note?: string;
+}
+
+interface ScoreResult {
+  score: number;
+  details: ScoreDetail[];
+}
+
+export function scoreArticle(article: {
+  title: string;
+  content: string;
+  excerpt: string;
+  tags: string[];
+}): ScoreResult {
+  const details: ScoreDetail[] = [];
+
+  // 文字数: 3000-8000 → 10点
+  const charCount = article.content.length;
+  const charScore = charCount >= 3000 && charCount <= 8000 ? 10
+    : charCount >= 1500 && charCount < 3000 ? 5
+    : charCount > 8000 && charCount <= 12000 ? 7
+    : 0;
+  details.push({
+    criterion: '文字数',
+    score: charScore,
+    max: 10,
+    note: `${charCount}文字 (目標: 3000-8000)`,
+  });
+
+  // H2 見出し数: 3個以上 → 10点
+  const h2Count = (article.content.match(/^## /gm) ?? []).length;
+  const h2Score = h2Count >= 3 ? 10 : h2Count === 2 ? 7 : h2Count === 1 ? 3 : 0;
+  details.push({
+    criterion: 'H2見出し数',
+    score: h2Score,
+    max: 10,
+    note: `${h2Count}個 (目標: 3個以上)`,
+  });
+
+  // コードブロック: 1個以上 → 10点
+  const codeBlockCount = (article.content.match(/```/g) ?? []).length / 2;
+  const codeScore = codeBlockCount >= 1 ? 10 : 0;
+  details.push({
+    criterion: 'コードブロック',
+    score: codeScore,
+    max: 10,
+    note: `${Math.floor(codeBlockCount)}個 (目標: 1個以上)`,
+  });
+
+  // title長: 30-60文字 → 10点
+  const titleLen = article.title.length;
+  const titleScore = titleLen >= 30 && titleLen <= 60 ? 10
+    : titleLen >= 20 && titleLen < 30 ? 7
+    : titleLen > 60 && titleLen <= 80 ? 7
+    : titleLen > 0 ? 3
+    : 0;
+  details.push({
+    criterion: 'タイトル長',
+    score: titleScore,
+    max: 10,
+    note: `${titleLen}文字 (目標: 30-60文字)`,
+  });
+
+  // excerpt長: 100-200文字 → 10点
+  const excerptLen = article.excerpt.length;
+  const excerptScore = excerptLen >= 100 && excerptLen <= 200 ? 10
+    : excerptLen >= 50 && excerptLen < 100 ? 5
+    : excerptLen > 200 && excerptLen <= 300 ? 7
+    : excerptLen > 0 ? 3
+    : 0;
+  details.push({
+    criterion: 'excerpt長',
+    score: excerptScore,
+    max: 10,
+    note: `${excerptLen}文字 (目標: 100-200文字)`,
+  });
+
+  // tags数: 3-7個 → 10点
+  const tagCount = article.tags.length;
+  const tagScore = tagCount >= 3 && tagCount <= 7 ? 10
+    : tagCount === 2 || tagCount === 8 ? 7
+    : tagCount >= 1 ? 3
+    : 0;
+  details.push({
+    criterion: 'タグ数',
+    score: tagScore,
+    max: 10,
+    note: `${tagCount}個 (目標: 3-7個)`,
+  });
+
+  // 導入段落: 最初のH2前にテキストが存在するか
+  const firstH2Index = article.content.indexOf('\n## ');
+  const intro = firstH2Index > 0 ? article.content.slice(0, firstH2Index).trim() : '';
+  const introScore = intro.length >= 50 ? 10 : intro.length > 0 ? 5 : 0;
+  details.push({
+    criterion: '導入段落',
+    score: introScore,
+    max: 10,
+    note: intro.length > 0 ? `${intro.length}文字` : 'なし',
+  });
+
+  // まとめ段落: まとめ/おわりに/conclusion を含む見出しが存在するか
+  const hasSummary = /^## .*(まとめ|おわりに|conclusion|まとめと|終わりに)/im.test(article.content);
+  const summaryScore = hasSummary ? 10 : 0;
+  details.push({
+    criterion: 'まとめ段落',
+    score: summaryScore,
+    max: 10,
+    note: hasSummary ? 'あり' : 'なし',
+  });
+
+  const totalScore = details.reduce((sum, d) => sum + d.score, 0);
+  return { score: totalScore, details };
+}
+
 // --- スラッグ生成 ---
 function generateSlug(prNumber: number | undefined, issueNumber: number | undefined, title: string): string {
   const prefix = prNumber ? `pr-${prNumber}` : issueNumber ? `issue-${issueNumber}` : '';
@@ -231,7 +351,7 @@ async function main() {
   }
 
   // 2. Claude CLI でコンテンツ生成
-  const promptText = `あなたは AI Tech Blog のテクニカルライターです。
+  const promptText = `あなたは AI Tech Blog のシニアテクニカルライターです。
 エンジニア向けのわかりやすく実践的な記事を日本語で書いてください。
 
 以下の GitHub ${context.type} 情報を元に、AI Tech Blog の記事を生成してください。
@@ -247,13 +367,29 @@ ${context.commits.join('\n')}
 ## 主な変更ファイル
 ${context.files.join('\n')}
 
+## 記事構成の必須要件
+1. **導入段落（H2前）**: 読者の課題・背景を説明し、この記事で何が得られるかを明示（50文字以上）
+2. **H2見出し**: 3個以上設ける（例: 背景・課題 / 解決策・実装 / 結果・考察 / まとめ）
+3. **コードブロック**: 実際のコード・コマンドを1つ以上含める
+4. **まとめセクション**: 最後に「## まとめ」または「## おわりに」を必ず記述
+
+## SEO要件
+- title: 30〜60文字で検索されやすいキーワードを含める
+- excerpt: 100〜200文字で記事の価値を端的に伝える
+- tags: 3〜7個、具体的な技術キーワードを含める
+
+## 品質基準
+- 本文: 3000〜8000文字（詳細な解説・実例を含めて充実させること）
+- 技術的正確さ: コードサンプルは実際に動作する内容にする
+- 読者視点: なぜその実装を選んだか、どう応用できるかを説明する
+
 ## 出力形式 (JSON)
 必ず以下のJSON形式のみを出力してください（余計なテキストなし）:
 {
-  "title": "記事タイトル（50文字以内）",
+  "title": "記事タイトル（30〜60文字）",
   "excerpt": "記事の概要（100〜200文字）",
-  "tags": ["タグ1", "タグ2"],
-  "content": "Markdown形式の記事本文（見出し・コードブロック使用、1000〜3000文字）"
+  "tags": ["タグ1", "タグ2", "タグ3"],
+  "content": "Markdown形式の記事本文（導入段落 + H2見出し3個以上 + コードブロック1個以上 + まとめ、3000〜8000文字）"
 }`;
 
   console.log('Claude CLI で記事を生成中...');
@@ -299,6 +435,20 @@ ${context.files.join('\n')}
     author: args.author,
     status: args.status,
   };
+
+  // 品質スコアリング
+  const scoreResult = scoreArticle({ title, content, excerpt, tags });
+  console.log(`\n=== 品質スコア: ${scoreResult.score}/80 ${scoreResult.score >= 60 ? '✓ PASS' : '✗ FAIL'} ===`);
+  for (const d of scoreResult.details) {
+    const mark = d.score === d.max ? '✓' : d.score > 0 ? '△' : '✗';
+    console.log(`  ${mark} ${d.criterion}: ${d.score}/${d.max}${d.note ? ` (${d.note})` : ''}`);
+  }
+  console.log('');
+
+  if (scoreResult.score < 60 && !args.dryRun) {
+    console.warn('Warning: 品質スコアが60点未満です。記事をdraftとして保存します。');
+    article.status = 'draft';
+  }
 
   // 3. dry-run or 投稿
   if (args.dryRun) {

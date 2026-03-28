@@ -10,18 +10,36 @@ const IMAGE_HEIGHT = 576;
 
 /** カテゴリ別プロンプトスタイル */
 const CATEGORY_STYLES: Record<string, string> = {
-  'claude-code': 'Minimalist digital workspace with code editor, AI assistant interface, dark theme',
-  'ai-hacks': 'Creative tech innovation concept, colorful data streams, modern abstract',
-  'ai-news': 'Breaking news concept with AI elements, digital globe, neural network',
-  'tech': 'Technology concept with circuits, processors, futuristic design',
+  'claude-code':
+    'Sleek dark-mode developer workstation, glowing terminal with AI assistant chat interface overlay, ' +
+    'code editor with syntax-highlighted snippets in teal and violet, subtle gradient background, ' +
+    'cinematic lighting, ultra-wide monitor setup, isometric perspective',
+  'ai-hacks':
+    'Creative tech innovation concept, vibrant digital workshop scene, glowing toolbox with AI tools, ' +
+    'colorful data streams, electric sparks of innovation, bold neon colors on dark background, ' +
+    'geometric abstract shapes, dynamic composition',
+  'ai-news':
+    'Breaking news concept with AI elements, futuristic newsroom holographic display, ' +
+    'digital globe at center, streaming data headlines, neural network visualization, ' +
+    'blue-white color scheme, high-tech broadcast studio ambience',
+  'tech':
+    'Technology concept with circuits, processors, hyper-detailed circuit board macro shot, ' +
+    'golden traces on deep blue PCB, glowing processor at center, futuristic design, ' +
+    'dramatic side lighting, photorealistic style',
 };
 
-const DEFAULT_STYLE = 'Modern technology concept, clean digital illustration';
+const DEFAULT_STYLE =
+  'Modern technology concept, clean digital illustration, blue-purple gradient palette, ' +
+  'minimalist geometric design, professional and sleek';
 
 /** 記事のタイトルとカテゴリからプロンプトを生成 */
 export function generatePrompt(title: string, category: string): string {
   const style = CATEGORY_STYLES[category] ?? DEFAULT_STYLE;
-  return `${style}, representing the concept of "${title}", high quality, detailed, 4k resolution, professional illustration`;
+  return (
+    `${style}, representing the concept of "${title}", ` +
+    'high quality, detailed, 4k resolution, professional illustration, ' +
+    'no text overlay, no watermark'
+  );
 }
 
 /** ComfyUI flux-gguf ワークフローを構築 */
