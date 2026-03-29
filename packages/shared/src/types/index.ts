@@ -60,6 +60,44 @@ export interface ApiError {
   };
 }
 
+// --- Article Topics ---
+
+export type TopicStatus = 'pending' | 'accepted' | 'rejected' | 'generated';
+export type TopicSourceType = 'commit' | 'issue' | 'pull_request';
+
+export interface ArticleTopic {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  tags: string[];
+  sourceType: TopicSourceType;
+  sourceRepo: string;
+  sourceRef: string | null;
+  sourceUrl: string | null;
+  sourceData: Record<string, unknown>;
+  status: TopicStatus;
+  articleId: string | null;
+  createdAt: Date;
+}
+
+// --- Article Generation Jobs ---
+
+export type JobStatus = 'pending' | 'generating' | 'completed' | 'failed';
+
+export interface ArticleGenerationJob {
+  id: string;
+  topicId: string;
+  author: string;
+  status: JobStatus;
+  articleId: string | null;
+  errorMessage: string | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // --- Health ---
 
 export interface HealthStatus {
