@@ -11,3 +11,13 @@ export function generateSlug(input: string): string {
     .slice(0, MAX_SLUG_LENGTH)
     .replace(/-+$/, '');
 }
+
+export function normalizeSlug(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, MAX_SLUG_LENGTH);
+}

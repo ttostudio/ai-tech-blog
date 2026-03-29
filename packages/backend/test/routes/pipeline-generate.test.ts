@@ -66,7 +66,8 @@ describe('POST /api/pipeline/topics/:id/generate', () => {
   it('UT-301: accepted トピックから生成ジョブを作成する', async () => {
     const { sql, fn } = createMockSql([]);
     fn.mockResolvedValueOnce([makeTopic()])            // SELECT topic
-      .mockResolvedValueOnce([])                        // SELECT active jobs (none)
+      .mockResolvedValueOnce([])                        // SELECT active jobs for topic (none)
+      .mockResolvedValueOnce([{ count: 0 }])            // SELECT COUNT global concurrent jobs
       .mockResolvedValue([makeJob()]);                  // INSERT job
 
     const app = buildApp(sql);
@@ -88,6 +89,7 @@ describe('POST /api/pipeline/topics/:id/generate', () => {
     const { sql, fn } = createMockSql([]);
     fn.mockResolvedValueOnce([makeTopic()])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ count: 0 }])
       .mockResolvedValue([makeJob()]);
 
     const app = buildApp(sql);
@@ -186,6 +188,46 @@ describe('POST /api/pipeline/topics/:id/generate', () => {
     expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.body);
     expect(body.error.message).toContain('Invalid topic ID format');
+  });
+
+  it('UT-309: 同時生成ジョブが5件の場合 429', async () => {
+    const { sql, fn } = createMockSql([]);
+    fn.mockResolvedValueOnce([makeTopic()])    // SELECT topic
+      .mockResolvedValueOnce([])               // SELECT active jobs for topic (none)
+      .mockResolvedValueOnce([{ count: 5 }]);  // SELECT COUNT global concurrent jobs
+
+    const app = buildApp(sql);
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/pipeline/topics/${VALID_ID}/generate`,
+      headers: VALID_AUTH,
+      body: JSON.stringify({}),
+    });
+
+    expect(res.statusCode).toBe(429);
+    const body = JSON.parse(res.body);
+    expect(body.error.message).toContain('Maximum 5 allowed');
+  });
+
+  it('UT-310: 202 レスポンスに createdAt が含まれる', async () => {
+    const createdAt = new Date('2026-01-15T00:00:00Z');
+    const { sql, fn } = createMockSql([]);
+    fn.mockResolvedValueOnce([makeTopic()])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ count: 0 }])
+      .mockResolvedValue([makeJob({ created_at: createdAt })]);
+
+    const app = buildApp(sql);
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/pipeline/topics/${VALID_ID}/generate`,
+      headers: VALID_AUTH,
+      body: JSON.stringify({}),
+    });
+
+    expect(res.statusCode).toBe(202);
+    const body = JSON.parse(res.body);
+    expect(body.data).toHaveProperty('createdAt');
   });
 
   it('UT-308: 認証ヘッダーなしで 401', async () => {

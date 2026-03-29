@@ -223,6 +223,41 @@ describe('POST /api/pipeline/topics/extract', () => {
     expect(body.error.message).toContain('Failed to fetch GitHub activity');
   });
 
+  it('UT-111: since が不正な ISO 8601 形式の場合 400', async () => {
+    const { sql } = createMockSql();
+    const app = buildApp(sql);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/pipeline/topics/extract',
+      headers: VALID_AUTH,
+      body: JSON.stringify({ since: 'not-a-date' }),
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body);
+    expect(body.error.message).toContain('Invalid since parameter');
+  });
+
+  it('UT-112: since が有効な ISO 8601 の場合は通過する', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    } as Response);
+
+    const { sql, fn } = createMockSql([]);
+    fn.mockResolvedValue([]);
+
+    const app = buildApp(sql);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/pipeline/topics/extract',
+      headers: VALID_AUTH,
+      body: JSON.stringify({ since: '2026-01-01T00:00:00Z', source: 'commits', repos: ['owner/repo'] }),
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
   it('UT-109: 認証ヘッダーなしで 401', async () => {
     const { sql } = createMockSql();
     const app = buildApp(sql);

@@ -84,6 +84,9 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
 
     const defaultSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const since = (body['since'] as string | undefined) ?? defaultSince;
+    if (body['since'] !== undefined && isNaN(Date.parse(since))) {
+      return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: 'Invalid since parameter: must be ISO 8601 format' } });
+    }
 
     const shouldFetch = (s: SourceType) =>
       source === 'all' || source === s;
@@ -253,10 +256,15 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(409).send({ error: { code: 'CONFLICT', message: 'A generation job is already in progress for this topic' } });
     }
 
+    const [{ count }] = await sql`SELECT COUNT(*)::int as count FROM article_generation_jobs WHERE status IN ('pending', 'generating')`;
+    if ((count as number) >= 5) {
+      return reply.code(429).send({ error: { code: 'TOO_MANY_REQUESTS', message: 'Too many concurrent generation jobs. Maximum 5 allowed.' } });
+    }
+
     const [job] = await sql`
       INSERT INTO article_generation_jobs (topic_id, author)
       VALUES (${id}, ${author})
-      RETURNING *
+      RETURNING id, created_at
     `;
     const jobId = job['id'] as string;
 
@@ -268,7 +276,7 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
     });
 
     return reply.code(202).send({
-      data: { topicId: id, jobId, status: 'pending' },
+      data: { topicId: id, jobId, status: 'pending', createdAt: job['created_at'] as Date },
     });
   });
 

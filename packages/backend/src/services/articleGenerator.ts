@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { normalizeSlug } from '../utils/slug.js';
 
 const TIMEOUT_MS = 120_000;
 const MODEL = 'claude-sonnet-4-6';
@@ -74,15 +75,6 @@ export function parseArticleResponse(text: string): ParsedArticle {
   return { title, slug, excerpt, content };
 }
 
-function normalizeSlug(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-{2,}/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
-}
 
 export async function generateArticle(
   input: ArticlePromptInput,
