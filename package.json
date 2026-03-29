@@ -23,7 +23,7 @@
     "@playwright/test": "^1.58.2",
     "@types/node": "22.13.14",
     "eslint": "^9.39.4",
-    "typescript": "5.8.2",
+    "typescript": "6.0.2",
     "typescript-eslint": "^8.57.2",
     "vitest": "3.0.9"
   },
