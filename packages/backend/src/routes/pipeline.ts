@@ -134,7 +134,7 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
             ${item.sourceRepo},
             ${item.sourceRef},
             ${item.sourceUrl},
-            ${sql.json(item.sourceData)}
+            ${sql.json(item.sourceData as any)}
           )
           RETURNING *
         `;
