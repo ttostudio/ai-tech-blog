@@ -88,4 +88,50 @@ export const MIGRATIONS: Migration[] = [
         ON articles (category, status);
     `,
   },
+  {
+    version: 7,
+    name: 'create_article_topics',
+    up: `
+      CREATE TABLE IF NOT EXISTS article_topics (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title        VARCHAR(500) NOT NULL,
+        description  TEXT,
+        category     VARCHAR(100) NOT NULL,
+        tags         TEXT[] NOT NULL DEFAULT '{}',
+        source_type  VARCHAR(50) NOT NULL,
+        source_repo  VARCHAR(200) NOT NULL,
+        source_ref   VARCHAR(500),
+        source_url   VARCHAR(2048),
+        source_data  JSONB NOT NULL DEFAULT '{}',
+        status       VARCHAR(20) NOT NULL DEFAULT 'pending',
+        article_id   UUID REFERENCES articles(id) ON DELETE SET NULL,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_article_topics_status      ON article_topics(status);
+      CREATE INDEX IF NOT EXISTS idx_article_topics_source_type ON article_topics(source_type);
+      CREATE INDEX IF NOT EXISTS idx_article_topics_created_at  ON article_topics(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_article_topics_source_ref  ON article_topics(source_ref);
+    `,
+  },
+  {
+    version: 8,
+    name: 'create_article_generation_jobs',
+    up: `
+      CREATE TABLE IF NOT EXISTS article_generation_jobs (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        topic_id          UUID NOT NULL REFERENCES article_topics(id) ON DELETE CASCADE,
+        author            VARCHAR(200) NOT NULL DEFAULT 'AI Tech Blog',
+        status            VARCHAR(20) NOT NULL DEFAULT 'pending',
+        article_id        UUID REFERENCES articles(id) ON DELETE SET NULL,
+        error_message     TEXT,
+        prompt_tokens     INTEGER,
+        completion_tokens INTEGER,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gen_jobs_topic_id   ON article_generation_jobs(topic_id);
+      CREATE INDEX IF NOT EXISTS idx_gen_jobs_status     ON article_generation_jobs(status);
+      CREATE INDEX IF NOT EXISTS idx_gen_jobs_created_at ON article_generation_jobs(created_at DESC);
+    `,
+  },
 ];

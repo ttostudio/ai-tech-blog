@@ -5,6 +5,7 @@ import { articleRoutes } from './routes/articles.js';
 import { healthRoutes } from './routes/health.js';
 import { categoryRoutes } from './routes/categories.js';
 import { thumbnailRoutes } from './routes/thumbnails.js';
+import { pipelineRoutes } from './routes/pipeline.js';
 
 export function buildApp(sql: Sql) {
   const app = Fastify({ logger: true });
@@ -17,6 +18,7 @@ export function buildApp(sql: Sql) {
   app.register(articleRoutes, { prefix: '/api' });
   app.register(categoryRoutes, { prefix: '/api' });
   app.register(thumbnailRoutes, { prefix: '/api' });
+  app.register(pipelineRoutes, { prefix: '/api' });
 
   return app;
 }
